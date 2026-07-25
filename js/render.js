@@ -154,12 +154,15 @@ export class Renderer {
     this.canvas.style.width = cssSize + 'px';
     this.canvas.style.height = cssSize + 'px';
     this.pxSize = px;
+    this.dpr = dpr;
   }
 
   // `data` is an interleaved [x, y, type] view produced by the simulation.
   draw(data, n, opts) {
     const scale = this.pxSize / WORLD;
-    const size = Math.max(1.5, opts.radius * 2 * scale);
+    // Floor at 2 CSS pixels. A radius in world units renders less than half as
+    // large on a phone as on a desktop, and below ~2px particles vanish.
+    const size = Math.max(2 * this.dpr, opts.radius * 2 * scale);
     if (this.mode === 'webgl') this._drawGL(data, n, size, opts.fade);
     else this._drawCanvas(data, n, size, opts.fade);
   }

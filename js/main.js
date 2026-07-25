@@ -1,11 +1,11 @@
-import { createState, randomizeForces } from './state.js';
+import { createState, randomizeForces, DEFAULT_PARAMS, DEFAULT_COUNT, DEFAULT_VIEW } from './state.js';
 import { applyPreset } from './presets.js';
 import { createHost } from './host.js';
 import { Renderer } from './render.js';
 import { buildUI, saveSettings, loadSettings } from './ui.js';
 
 const state = createState();
-const view = { radius: 2.6, fade: 0.55 };
+const view = { ...DEFAULT_VIEW };
 loadSettings(state, view);
 
 const canvas = document.getElementById('view');
@@ -81,6 +81,18 @@ function clearMatrix() {
   saveSettings(state, view);
 }
 
+// World settings only — the interaction matrix and masses are left alone,
+// since presets do not carry world settings either.
+function resetWorld() {
+  Object.assign(state.params, DEFAULT_PARAMS);
+  Object.assign(view, DEFAULT_VIEW);
+  state.count = DEFAULT_COUNT;
+  ui.refreshAll();
+  host.sync();
+  saveSettings(state, view);
+}
+
+document.getElementById('btnResetWorld').addEventListener('click', resetWorld);
 btnPause.addEventListener('click', () => setPaused(!paused));
 for (const b of document.querySelectorAll('.js-randomize')) {
   b.addEventListener('click', randomize);

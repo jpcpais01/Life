@@ -59,6 +59,23 @@ body {
 .rep { color: var(--rep); }
 
 section { margin-top: 18px; }
+section h2.withaction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.linkbtn {
+  background: none;
+  border: none;
+  padding: 0 0 0 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  cursor: pointer;
+}
+.linkbtn:hover { color: var(--text); background: none; border: none; }
+
 section h2 {
   margin: 0 0 8px;
   font-size: 10px;
@@ -329,5 +346,7 @@ button.wide:active { background: #1d3226; }
   }
   body.panel-open #panel { transform: none; }
   #panelToggle { display: block; }
+  /* Out of the way of the panel's own content once the drawer is open. */
+  body.panel-open #panelToggle { left: auto; right: 10px; }
   #stage { padding: 8px; }
 }

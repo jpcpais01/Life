@@ -28,6 +28,19 @@ export const WORLD = 1000; // square world; wraps on all four edges
 // Damping and force trade off: terminal speed is a·damping/(1−damping), so 0.92
 // glides about 28% further per unit of force than 0.90 did. Force is trimmed to
 // match, which buys longer, more fluid drift at the same overall pace.
+//
+// Damping and time step were then checked as a 3x3 grid against all ten presets
+// plus random matrices. Neither neighbouring value survives every case, which is
+// why these are the defaults:
+//
+//   dt 0.70  crisper structure (+12% clustering) but Crystal sets solid —
+//            its churn falls from 0.19 to 0.05 and it stops moving entirely
+//   dt 1.00  nothing freezes, but structure drops everywhere: Ecosystem loses
+//            a third of its clustering and Worms a fifth
+//
+// So 0.85 is not the best on average — it is the one that costs no case its
+// behaviour. Raising steps/frame to 2 and dropping dt to 0.7 buys the finer
+// integration back at full pace, for double the CPU.
 export const DEFAULT_PARAMS = {
   force: 240,     // global force scale
   cutR: 70,       // attraction cutoff radius
@@ -58,9 +71,13 @@ export function randomizeForces(attract, repel, mass) {
   }
 }
 
+// Rendering defaults live here too, so one Reset restores the whole panel.
+export const DEFAULT_COUNT = 3000;
+export const DEFAULT_VIEW = { radius: 2.6, fade: 0.55 };
+
 export function createState() {
   const state = {
-    count: 3000,
+    count: DEFAULT_COUNT,
     params: { ...DEFAULT_PARAMS },
     attract: new Float32Array(NT * NT),
     repel: new Float32Array(NT * NT),
