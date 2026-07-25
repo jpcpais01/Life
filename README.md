@@ -51,7 +51,8 @@ the **column** is the particle exerting it.
 **Mass** — per-type mass, which scales how hard that type pushes and pulls
 everything else.
 
-`Space` pauses, `R` randomizes the matrix, `C` respawns the particles. Settings
+`Space` pauses, `R` randomizes all 50 interaction factors, `C` respawns the
+particles. Settings
 persist in local storage.
 
 The four readouts at the top are the honest cost of what you have set up: frame
