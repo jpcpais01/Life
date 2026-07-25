@@ -91,11 +91,38 @@ export function buildUI(state, view, onChange, onPreset) {
     { label: 'Trails', min: 0, max: 0.98, step: 0.01,
       get: () => 1 - view.fade, set: (v) => { view.fade = 1 - v; }, fmt: (v) => v.toFixed(2) },
   ];
+  // The two radii are the variables that decide whether anything interesting
+  // happens at all, and only their *ratio* matters — so show it live.
+  const ratio = document.createElement('p');
+  ratio.className = 'hint ratio';
+  const ratioValue = document.createElement('b');
+  const ratioTail = document.createElement('span');
+  ratio.append('Attraction reaches ', ratioValue, ratioTail);
+  const syncRatio = () => {
+    const r = p.cutR / p.coreR;
+    ratioValue.textContent = `${r.toFixed(1)}×`;
+    // Below ~1.5 the equilibrium sits where both forces are already zero, so
+    // nothing binds. Above ~4 each particle averages over so many neighbours
+    // that the per-pair matrix washes out and the colours stop separating.
+    ratioValue.classList.toggle('out', r < 1.5 || r > 4);
+    ratioTail.textContent = r < 1.5
+      ? ' the repulsion core — too short to bind, expect a structureless gas.'
+      : r > 4
+        ? ' the repulsion core — so wide the colours blur together.'
+        : ' the repulsion core — the 1.5–4× range where structure forms.';
+  };
+  syncRatio();
+
+  const globalRefresh = [];
   for (const d of defs) {
-    const s = slider({ ...d, set: (v) => { d.set(v); onChange(); } });
+    const s = slider({ ...d, set: (v) => { d.set(v); syncRatio(); onChange(); } });
     globals.append(s);
+    // Changing either radius moves the ratio, so both rows refresh together.
+    if (d.label === 'Repulsion core') globals.append(ratio);
+    globalRefresh.push(s.refresh);
     refresh.push(s.refresh);
   }
+  refresh.push(syncRatio);
 
   // ---------------- interaction matrix ----------------
   const matrix = document.getElementById('matrix');

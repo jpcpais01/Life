@@ -64,17 +64,24 @@ section h2.withaction {
   align-items: center;
   justify-content: space-between;
 }
+/* Must override the h2's uppercase/letter-spacing/dim colour it sits inside,
+   or it reads as part of the heading rather than as a control. */
 .linkbtn {
-  background: none;
-  border: none;
-  padding: 0 0 0 8px;
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--dim);
+  background: var(--panel-2);
+  border: 1px solid #33405c;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text);
   cursor: pointer;
+  flex: 0 0 auto;
 }
-.linkbtn:hover { color: var(--text); background: none; border: none; }
+.linkbtn:hover { background: #1b2133; border-color: #4a5c80; color: #fff; }
+.linkbtn:active { background: #232c42; }
 
 section h2 {
   margin: 0 0 8px;
@@ -145,6 +152,16 @@ section h2 {
 }
 #preset:hover { border-color: #33405c; }
 #presetNote { margin: 0 0 10px; min-height: 1.4em; font-style: italic; }
+
+.ratio {
+  margin: 2px 0 12px;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.ratio b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ratio b.out { color: #ffb454; }
 
 .buttons {
   display: grid;
