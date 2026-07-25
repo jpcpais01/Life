@@ -244,14 +244,33 @@ kbd {
 
 /* ---------------- stage ---------------- */
 
+/* Canvas and its button are centred together as one block, so the button
+   always sits directly under the sim rather than at the foot of the screen. */
 #stage {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   padding: 14px;
+  overflow: hidden;
 }
+#stagebar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+}
+button.wide {
+  padding: 9px 22px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  border-color: #2e5f45;
+  color: #b6f5cd;
+}
+button.wide:hover { background: #16241c; border-color: #3d7d5b; }
+button.wide:active { background: #1d3226; }
 #view {
   display: block;
   background: #000;

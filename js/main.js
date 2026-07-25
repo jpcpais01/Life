@@ -9,6 +9,7 @@ loadSettings(state, view);
 
 const canvas = document.getElementById('view');
 const stage = document.getElementById('stage');
+const stagebar = document.getElementById('stagebar');
 const renderer = new Renderer(canvas);
 const host = createHost(state);
 document.getElementById('engine').textContent =
@@ -24,11 +25,14 @@ const ui = buildUI(state, view, () => {
 // ---------------- layout: the world is always a square ----------------
 
 function layout() {
+  // Measured from the stage, never from the canvas — sizing the canvas off a
+  // box the canvas can influence would feed back into itself.
   const cs = getComputedStyle(stage);
   const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
   const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const gap = parseFloat(cs.rowGap) || 0;
   const w = stage.clientWidth - padX;
-  const h = stage.clientHeight - padY;
+  const h = stage.clientHeight - padY - stagebar.offsetHeight - gap;
   const size = Math.max(120, Math.floor(Math.min(w, h)));
   // Cap DPR at 2: beyond that the extra pixels cost more than they show.
   renderer.resize(size, Math.min(window.devicePixelRatio || 1, 2));
@@ -62,7 +66,9 @@ function clearMatrix() {
 }
 
 btnPause.addEventListener('click', () => setPaused(!paused));
-document.getElementById('btnRandom').addEventListener('click', randomize);
+for (const b of document.querySelectorAll('.js-randomize')) {
+  b.addEventListener('click', randomize);
+}
 document.getElementById('btnReset').addEventListener('click', () => host.reset());
 document.getElementById('btnZero').addEventListener('click', clearMatrix);
 document.getElementById('panelToggle').addEventListener('click', () => {

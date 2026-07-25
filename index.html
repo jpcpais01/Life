@@ -25,7 +25,7 @@
 
     <div class="buttons">
       <button id="btnPause" class="primary">Pause</button>
-      <button id="btnRandom">Randomize forces</button>
+      <button class="js-randomize">Randomize forces</button>
       <button id="btnReset">Respawn</button>
       <button id="btnZero">Clear</button>
     </div>
@@ -55,6 +55,9 @@
 
   <main id="stage">
     <canvas id="view"></canvas>
+    <div id="stagebar">
+      <button class="js-randomize wide">Randomize forces</button>
+    </div>
   </main>
 
   <button id="panelToggle" aria-label="Toggle controls">☰</button>
