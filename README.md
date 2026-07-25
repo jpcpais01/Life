@@ -37,6 +37,37 @@ settles into structure instead of boiling.
 The world is a torus: leave the right edge and you arrive at the left, and forces
 reach across the seam too, so there is no edge for particles to pile against.
 
+## Presets
+
+Ten starting points, each built around one mechanism rather than found by
+search:
+
+| | |
+|---|---|
+| **Cells** | blue cores wrapped in white membranes |
+| **Predator chain** | a closed 5-cycle where each colour hunts the next |
+| **Crystal** | one shared lattice, split into colour domains |
+| **Symbiosis** | two bonded couples and a loner — the one that settles |
+| **Nucleus** | a heavy white core in concentric coloured shells |
+| **Foam** | immiscible domains circulating past one another |
+| **Hunters** | red chases everything, everything flees red |
+| **Worms** | green filaments crawling after yellow |
+| **Rotors** | bound triples whose chase becomes rotation |
+| **Ecosystem** | every mechanism at once, nothing settles |
+
+Two consequences of the force law shape all of them. Since a pair settles where
+`A(1 − d/cutR) = R(1 − d/coreR)`, **repulsion must exceed attraction** for any
+pair that meets — otherwise they fall into a single point — and the size of
+`R − A` sets how far apart they sit. And **mass cancels out of that equation**,
+so a heavy type does not sit further away; it pulls the whole neighbourhood
+around harder.
+
+The rest is asymmetry. `A[i][j] ≠ A[j][i]` means i chases j while j flees, and
+that is the only thing keeping any of these in motion — Foam sets solid within
+seconds if its cross-repulsion is made symmetric.
+
+Editing any force or mass switches the picker to *Custom*; nothing is lost.
+
 ## Controls
 
 The left panel edits the live simulation — nothing restarts.
@@ -51,9 +82,13 @@ the **column** is the particle exerting it.
 **Mass** — per-type mass, which scales how hard that type pushes and pulls
 everything else.
 
-`Space` pauses, `R` randomizes all 50 interaction factors, `C` respawns the
-particles. Settings
-persist in local storage.
+`Space` pauses, `R` randomizes all 50 interaction factors and the five masses,
+`C` respawns the particles. Settings persist in local storage.
+
+Masses are shuffled log-uniformly around 1, so halving and doubling are equally
+likely and a shuffle does not quietly change the overall force level — a flat
+0.1–3 draw would average 1.55 and make every shuffle 55% hotter than the
+defaults expect.
 
 The four readouts at the top are the honest cost of what you have set up: frame
 rate, particle count, **interactions per step** (pairs actually within range),
@@ -90,6 +125,7 @@ mid-range laptop handles several thousand particles at 60 fps comfortably.
 index.html      markup and the control panel skeleton
 style.css
 js/state.js     types, constants, the config object the panel edits
+js/presets.js   the ten built-in force/mass combinations
 js/sim.js       the simulation — grid, force loop, integration
 js/worker.js    worker entry point
 js/host.js      worker/main-thread hosting and frame handoff

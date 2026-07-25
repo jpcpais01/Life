@@ -1,4 +1,5 @@
-import { createState, randomizeMatrix } from './state.js';
+import { createState, randomizeForces } from './state.js';
+import { applyPreset } from './presets.js';
 import { createHost } from './host.js';
 import { Renderer } from './render.js';
 import { buildUI, saveSettings, loadSettings } from './ui.js';
@@ -16,11 +17,22 @@ document.getElementById('engine').textContent =
   `renderer: ${renderer.mode === 'webgl' ? 'webgl2' : 'canvas2d'} · physics: ${host.mode === 'worker' ? 'worker thread' : 'main thread'}`;
 
 let saveTimer = 0;
-const ui = buildUI(state, view, () => {
-  host.sync();
+const scheduleSave = () => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => saveSettings(state, view), 400);
+};
+
+const ui = buildUI(state, view, () => {
+  host.sync();
+  scheduleSave();
+}, (preset, index) => {
+  applyPreset(state, preset);
+  state.preset = index;
+  ui.refreshAll();
+  host.sync();
+  scheduleSave();
 });
+ui.showPreset(state.preset);
 
 // ---------------- layout: the world is always a square ----------------
 
@@ -51,7 +63,9 @@ function setPaused(v) {
 }
 
 function randomize() {
-  randomizeMatrix(state.attract, state.repel);
+  randomizeForces(state.attract, state.repel, state.mass);
+  state.preset = null;
+  ui.markCustom();
   ui.refreshAll();
   host.sync();
   saveSettings(state, view);
@@ -60,6 +74,8 @@ function randomize() {
 function clearMatrix() {
   state.attract.fill(0);
   state.repel.fill(0);
+  state.preset = null;
+  ui.markCustom();
   ui.refreshAll();
   host.sync();
   saveSettings(state, view);

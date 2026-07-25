@@ -2,6 +2,7 @@
 // simulation/render state — no re-render, no framework, no allocation churn.
 
 import { TYPES, NT, MAX_PARTICLES } from './state.js';
+import { PRESETS } from './presets.js';
 
 const STORE_KEY = 'life.settings.v1';
 
@@ -32,9 +33,41 @@ function slider({ label, min, max, step, get, set, fmt }) {
   return row;
 }
 
-export function buildUI(state, view, onChange) {
+export function buildUI(state, view, onChange, onPreset) {
   const p = state.params;
   const refresh = [];
+
+  // ---------------- presets ----------------
+  const select = document.getElementById('preset');
+  const note = document.getElementById('presetNote');
+  const custom = document.createElement('option');
+  custom.value = 'custom';
+  custom.textContent = 'Custom';
+  select.append(custom);
+  PRESETS.forEach((preset, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = preset.name;
+    select.append(o);
+  });
+  select.addEventListener('change', () => {
+    const index = +select.value;
+    const preset = PRESETS[index];
+    if (!preset) return;
+    note.textContent = preset.note;
+    onPreset(preset, index);
+  });
+
+  // Any hand edit means the forces no longer match the named preset.
+  const markCustom = () => {
+    select.value = 'custom';
+    note.textContent = '';
+  };
+  const showPreset = (index) => {
+    if (index == null) return markCustom();
+    select.value = String(index);
+    note.textContent = PRESETS[index].note;
+  };
 
   // ---------------- world / global ----------------
   const globals = document.getElementById('globals');
@@ -114,8 +147,8 @@ export function buildUI(state, view, onChange) {
         va.textContent = compact(state.attract[idx]);
         vr.textContent = compact(state.repel[idx]);
       };
-      ia.addEventListener('input', () => { state.attract[idx] = +ia.value; sync(); onChange(); });
-      ir.addEventListener('input', () => { state.repel[idx] = +ir.value; sync(); onChange(); });
+      ia.addEventListener('input', () => { state.attract[idx] = +ia.value; sync(); markCustom(); onChange(); });
+      ir.addEventListener('input', () => { state.repel[idx] = +ir.value; sync(); markCustom(); onChange(); });
       sync();
       refresh.push(sync);
 
@@ -141,14 +174,18 @@ export function buildUI(state, view, onChange) {
       input.value = state.mass[t];
       val.textContent = state.mass[t].toFixed(2);
     };
-    input.addEventListener('input', () => { state.mass[t] = +input.value; sync(); onChange(); });
+    input.addEventListener('input', () => { state.mass[t] = +input.value; sync(); markCustom(); onChange(); });
     sync();
     refresh.push(sync);
     row.append(dot, input, val);
     masses.append(row);
   }
 
-  return { refreshAll: () => refresh.forEach((f) => f()) };
+  return {
+    refreshAll: () => refresh.forEach((f) => f()),
+    showPreset,
+    markCustom,
+  };
 }
 
 export function saveSettings(state, view) {
@@ -160,6 +197,7 @@ export function saveSettings(state, view) {
       repel: Array.from(state.repel),
       mass: Array.from(state.mass),
       view: { radius: view.radius, fade: view.fade },
+      preset: state.preset,
     }));
   } catch { /* storage unavailable — not worth surfacing */ }
 }
@@ -179,6 +217,7 @@ export function loadSettings(state, view) {
       if (Number.isFinite(s.view.radius)) view.radius = s.view.radius;
       if (Number.isFinite(s.view.fade)) view.fade = s.view.fade;
     }
+    state.preset = Number.isInteger(s.preset) ? s.preset : null;
     return true;
   } catch {
     return false;

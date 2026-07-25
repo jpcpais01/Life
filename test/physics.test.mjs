@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../js/sim.js';
-import { NT, WORLD, randomizeMatrix } from '../js/state.js';
+import { NT, WORLD, randomizeForces } from '../js/state.js';
 
 const SOFT = 16;
 const DMIN = 1;
@@ -59,8 +59,7 @@ function makeSim(count, tweak = {}) {
   const sim = new Simulation();
   sim.count = count;
   sim.reset();
-  randomizeMatrix(sim.attract, sim.repel);
-  for (let t = 0; t < NT; t++) sim.mass[t] = 0.4 + Math.random() * 2;
+  randomizeForces(sim.attract, sim.repel, sim.mass);
   Object.assign(sim.params, tweak);
   return sim;
 }

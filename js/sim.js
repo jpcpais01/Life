@@ -12,7 +12,7 @@
 // (green may chase yellow while yellow flees green) — which is what makes the
 // behaviour interesting.
 
-import { NT, MAX_PARTICLES, WORLD, DEFAULT_PARAMS, randomizeMatrix } from './state.js';
+import { NT, MAX_PARTICLES, WORLD, DEFAULT_PARAMS, randomizeForces } from './state.js';
 
 // Softening length² — keeps a = m/d² finite as d -> 0.
 const SOFT = 16;
@@ -46,7 +46,7 @@ export class Simulation {
     this.cellStart = new Int32Array(1);
     this.cursor = new Int32Array(1);
 
-    this.count = 2000;
+    this.count = 3000;
 
     // Row = the particle that feels the force, column = the one exerting it.
     this.attract = new Float32Array(NT * NT);
@@ -60,7 +60,7 @@ export class Simulation {
     this.params = { ...DEFAULT_PARAMS };
     this.pairs = 0;
 
-    randomizeMatrix(this.attract, this.repel);
+    randomizeForces(this.attract, this.repel, this.mass);
     this.reset();
   }
 
