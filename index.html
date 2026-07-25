@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Life — emergent particle simulation</title>
+<meta name="description" content="A fast particle-life simulation: five particle types, attractive and repulsive inverse-square forces, and a wrapping square world.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='11' cy='12' r='5' fill='%233ef07a'/><circle cx='22' cy='20' r='4' fill='%23ff4d5e'/><circle cx='21' cy='9' r='3' fill='%234d9bff'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside id="panel">
+    <header class="brand">
+      <h1>LIFE</h1>
+      <p>emergent behaviour from <span class="att">attraction</span> &amp; <span class="rep">repulsion</span></p>
+    </header>
+
+    <div class="stats">
+      <div><span id="statFps">–</span><label>fps</label></div>
+      <div><span id="statN">–</span><label>particles</label></div>
+      <div><span id="statPairs">–</span><label>interactions</label></div>
+      <div><span id="statMs">–</span><label>ms/step</label></div>
+    </div>
+
+    <div class="buttons">
+      <button id="btnPause" class="primary">Pause</button>
+      <button id="btnRandom">Randomize</button>
+      <button id="btnReset">Respawn</button>
+      <button id="btnZero">Clear</button>
+    </div>
+
+    <section>
+      <h2>World</h2>
+      <div id="globals"></div>
+    </section>
+
+    <section>
+      <h2>Interactions</h2>
+      <p class="hint">Row feels the force from column. <span class="att">green = attraction</span>, <span class="rep">red = repulsion</span>, both scaled 0 → 1.</p>
+      <div id="matrix"></div>
+    </section>
+
+    <section>
+      <h2>Mass</h2>
+      <p class="hint">A particle's mass sets how strongly it pulls and pushes others (a = m/d²).</p>
+      <div id="masses"></div>
+    </section>
+
+    <footer class="hint">
+      <kbd>Space</kbd> pause · <kbd>R</kbd> randomize · <kbd>C</kbd> respawn
+      <div id="engine"></div>
+    </footer>
+  </aside>
+
+  <main id="stage">
+    <canvas id="view"></canvas>
+  </main>
+
+  <button id="panelToggle" aria-label="Toggle controls">☰</button>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

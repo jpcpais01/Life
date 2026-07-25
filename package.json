@@ -1,0 +1,12 @@
+{
+  "name": "life",
+  "version": "1.0.0",
+  "description": "Emergent particle life: attractive and repulsive inverse-square forces on a wrapping square world.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test",
+    "bench": "node tools/bench.mjs"
+  }
+}
