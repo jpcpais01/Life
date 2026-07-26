@@ -4,6 +4,9 @@
 
 import { Simulation } from './sim.js';
 import { MAX_PARTICLES } from './state.js';
+import { StatsProbe } from './stats.js';
+
+const SAMPLE_MS = 100;
 
 const FLOATS = MAX_PARTICLES * 3; // [x, y, type] per particle
 
@@ -24,6 +27,9 @@ class WorkerHost {
       if (m.t !== 'frame') return;
       // A frame we never drew is stale the moment a newer one lands.
       if (this.pending) this.toReturn.push(this.pending.buf);
+      // Keep the newest non-null sample: dropping a stale frame must not drop
+      // its measurement with it.
+      this.signals = m.signals || this.signals;
       this.pending = { buf: m.buf, n: m.n, pairs: m.pairs, ms: m.ms };
     };
 
@@ -64,7 +70,9 @@ class WorkerHost {
     this.stats.pairs = f.pairs;
     this.stats.ms += (f.ms - this.stats.ms) * 0.15;
     this.frame = f;
-    return { data: new Float32Array(f.buf, 0, f.n * 3), n: f.n };
+    const signals = this.signals;
+    this.signals = null;
+    return { data: new Float32Array(f.buf, 0, f.n * 3), n: f.n, signals };
   }
 
   endFrame() {
@@ -84,6 +92,8 @@ class LocalHost {
     this.state = state;
     this.mode = 'local';
     this.sim = new Simulation();
+    this.probe = new StatsProbe();
+    this.lastSample = 0;
     this.buffer = new Float32Array(FLOATS);
     this.paused = false;
     this.stats = { n: 0, pairs: 0, ms: 0 };
@@ -116,7 +126,14 @@ class LocalHost {
     const n = sim.writeRenderBuffer(this.buffer);
     this.stats.n = n;
     this.stats.pairs = sim.pairs;
-    return { data: this.buffer, n };
+
+    let signals = null;
+    const now = performance.now();
+    if (now - this.lastSample >= SAMPLE_MS) {
+      this.lastSample = now;
+      signals = this.probe.sample(sim);
+    }
+    return { data: this.buffer, n, signals };
   }
 
   endFrame() {}

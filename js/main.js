@@ -28,6 +28,7 @@ const ui = buildUI(state, view, () => {
 }, (preset, index) => {
   applyPreset(state, preset);
   state.preset = index;
+  ui.clearSignals();
   ui.refreshAll();
   host.sync();
   scheduleSave();
@@ -65,6 +66,7 @@ function setPaused(v) {
 function randomize() {
   randomizeForces(state.attract, state.repel, state.mass);
   state.preset = null;
+  ui.clearSignals();
   ui.markCustom();
   ui.refreshAll();
   host.sync();
@@ -97,7 +99,7 @@ btnPause.addEventListener('click', () => setPaused(!paused));
 for (const b of document.querySelectorAll('.js-randomize')) {
   b.addEventListener('click', randomize);
 }
-document.getElementById('btnReset').addEventListener('click', () => host.reset());
+document.getElementById('btnReset').addEventListener('click', () => { host.reset(); ui.clearSignals(); });
 document.getElementById('btnZero').addEventListener('click', clearMatrix);
 document.getElementById('panelToggle').addEventListener('click', () => {
   document.body.classList.toggle('panel-open');
@@ -108,7 +110,7 @@ addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === ' ') { e.preventDefault(); setPaused(!paused); }
   else if (k === 'r') randomize();
-  else if (k === 'c') host.reset();
+  else if (k === 'c') { host.reset(); ui.clearSignals(); }
 });
 
 // ---------------- main loop ----------------
@@ -135,6 +137,7 @@ function frame() {
   if (f) {
     renderer.draw(f.data, f.n, view);
     host.endFrame();
+    if (f.signals) ui.pushSignals(f.signals);
     frames++;
   }
 

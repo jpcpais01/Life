@@ -114,6 +114,14 @@ clustering. 0.85 is the value that takes nothing away from any of them. If you
 want the finer integration without the slowdown, set time step to 0.7 and
 steps/frame to 2 — same pace, crisper structure, double the CPU.
 
+**Signals** — four live traces of what the world is actually doing, sampled at
+10 Hz alongside the physics: clustering (with a dashed line at 1.0, the value a
+purely random scatter would give), how separated the colours are, interacting
+partners per particle, and mean speed. They restart on a respawn, a shuffle or
+a preset change, so you can watch a configuration settle from scratch. A sample
+costs one pass over the particles against ~100k pair evaluations per step, so
+it does not show up in the frame time.
+
 The four readouts at the top are the honest cost of what you have set up: frame
 rate, particle count, **interactions per step** (pairs actually within range),
 and milliseconds per physics step. Interactions grow with the *square* of the
@@ -154,6 +162,8 @@ js/sim.js       the simulation — grid, force loop, integration
 js/worker.js    worker entry point
 js/host.js      worker/main-thread hosting and frame handoff
 js/render.js    WebGL2 renderer with canvas2d fallback
+js/stats.js     live clustering/segregation measurements
+js/spark.js     the sparkline widget
 js/ui.js        control panel construction and persistence
 js/main.js      wiring and the frame loop
 test/           physics tests

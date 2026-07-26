@@ -4,10 +4,17 @@
 
 import { Simulation } from './sim.js';
 import { MAX_PARTICLES } from './state.js';
+import { StatsProbe } from './stats.js';
 
 const sim = new Simulation();
+const probe = new StatsProbe();
 let paused = false;
 const pool = []; // ArrayBuffers currently owned by this worker
+
+// Sample on a wall clock rather than every nth frame, so the graphs advance at
+// the same rate whether the sim is running at 60 steps/s or 6.
+const SAMPLE_MS = 100;
+let lastSample = 0;
 
 function pump() {
   while (!paused && pool.length) {
@@ -18,7 +25,14 @@ function pump() {
     for (let s = 0; s < steps; s++) sim.step();
     const ms = (performance.now() - t0) / steps;
     const n = sim.writeRenderBuffer(view);
-    postMessage({ t: 'frame', buf, n, pairs: sim.pairs, ms }, [buf]);
+
+    let signals = null;
+    const now = performance.now();
+    if (now - lastSample >= SAMPLE_MS) {
+      lastSample = now;
+      signals = probe.sample(sim);
+    }
+    postMessage({ t: 'frame', buf, n, pairs: sim.pairs, ms, signals }, [buf]);
   }
 }
 

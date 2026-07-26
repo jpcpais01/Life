@@ -3,6 +3,7 @@
 
 import { TYPES, NT, MAX_PARTICLES } from './state.js';
 import { PRESETS } from './presets.js';
+import { Sparkline } from './spark.js';
 
 const STORE_KEY = 'life.settings.v1';
 
@@ -68,6 +69,47 @@ export function buildUI(state, view, onChange, onPreset) {
     select.value = String(index);
     note.textContent = PRESETS[index].note;
   };
+
+  // ---------------- signal graphs ----------------
+  const signals = document.getElementById('signals');
+  const sparks = {
+    clumpiness: new Sparkline({
+      label: 'Clumpiness',
+      color: '#3ef07a',
+      // 1.0 is a purely random scatter; the dashed line marks it, so anything
+      // riding on the line means no structure has formed.
+      baseline: 1,
+      format: (v) => v.toFixed(2) + '×',
+    }),
+    segregation: new Sparkline({
+      label: 'Segregation',
+      color: '#ffd83d',
+      fixedMax: 1,
+      format: (v) => v.toFixed(2),
+    }),
+    neighbours: new Sparkline({
+      label: 'Neighbours',
+      color: '#7f9cff',
+      format: (v) => v.toFixed(0),
+    }),
+    speed: new Sparkline({
+      label: 'Mean speed',
+      color: '#ff8fa3',
+      format: (v) => v.toFixed(2),
+    }),
+  };
+  for (const s of Object.values(sparks)) signals.append(s.el);
+  const resizeSparks = () => { for (const s of Object.values(sparks)) s.resize(); };
+  resizeSparks();
+  new ResizeObserver(resizeSparks).observe(signals);
+
+  const pushSignals = (sample) => {
+    for (const key of Object.keys(sparks)) sparks[key].push(sample[key]);
+  };
+  const clearSignals = () => {
+    for (const s of Object.values(sparks)) s.clear();
+  };
+  document.getElementById('btnClearSignals').addEventListener('click', clearSignals);
 
   // ---------------- world / global ----------------
   const globals = document.getElementById('globals');
@@ -212,6 +254,8 @@ export function buildUI(state, view, onChange, onPreset) {
     refreshAll: () => refresh.forEach((f) => f()),
     showPreset,
     markCustom,
+    pushSignals,
+    clearSignals,
   };
 }
 
