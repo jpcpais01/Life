@@ -198,6 +198,7 @@ export function buildUI(state, view, onChange, onPreset) {
       label: 'Neighbours',
       color: '#7f9cff',
       format: (v) => v.toFixed(0),
+      formatDelta: (v) => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(1),
     }),
     speed: new Sparkline({
       label: 'Mean speed',

@@ -334,12 +334,29 @@ input[type=range]:hover::-moz-range-thumb { background: #cfd8ee; }
   margin-bottom: 3px;
 }
 .spark .top b { font-weight: 500; }
+.spark .readout {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
 .spark .top i {
   font-style: normal;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 600;
 }
+/* Trend over the last 12 samples. Neutral by default — for these measures
+   rising is not automatically good, so the colour only signals direction. */
+.spark .delta {
+  font-style: normal;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #5c6479;
+  min-width: 42px;
+  text-align: right;
+}
+.spark .delta.up { color: #7fd6a2; }
+.spark .delta.down { color: #d69a9a; }
 .spark canvas {
   display: block;
   width: 100%;

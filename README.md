@@ -159,7 +159,12 @@ want the finer integration without the slowdown, set time step to 0.7 and
 steps/frame to 2 — same pace, crisper structure, double the CPU.
 
 **Signals** — four live traces of what the world is actually doing, sampled at
-10 Hz alongside the physics: clustering (with a dashed line at 1.0, the value a
+10 Hz alongside the physics. Each shows its current value and, beside it, the
+change over the last 12 samples — about 1.2 seconds — so you can see whether
+something is still settling or has stopped moving. That change is the mean of
+the newest six samples minus the mean of the previous six rather than a
+first-versus-last difference, which on a noisy trace flickers sign even while
+the trace is plainly climbing. The measures are: clustering (with a dashed line at 1.0, the value a
 purely random scatter would give), how separated the colours are, interacting
 partners per particle, and mean speed. They restart on a respawn, a shuffle or
 a preset change, so you can watch a configuration settle from scratch. A sample

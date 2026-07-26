@@ -3,14 +3,35 @@
 
 const HISTORY = 200; // ~20 s at the 10 Hz sample rate
 
+// Trend window, in samples — 12 at 10 Hz is a 1.2 s look-back. The change is
+// read as the mean of the newest half minus the mean of the older half rather
+// than as first-versus-last: a plain endpoint difference over a noisy signal
+// is itself noisy, and would flicker sign on a trace that is clearly climbing.
+export const DELTA_WINDOW = 12;
+const DELTA_HALF = DELTA_WINDOW / 2;
+
+// Exported and pure so the arithmetic can be tested without a DOM: `window` is
+// the last DELTA_WINDOW samples, oldest first.
+export function meanDelta(window) {
+  if (window.length < DELTA_WINDOW) return null;
+  let recent = 0, prior = 0;
+  for (let k = 0; k < DELTA_HALF; k++) {
+    recent += window[window.length - 1 - k];
+    prior += window[window.length - 1 - DELTA_HALF - k];
+  }
+  return (recent - prior) / DELTA_HALF;
+}
+
 export class Sparkline {
-  constructor({ label, color, fixedMax = 0, baseline = 0, format }) {
+  constructor({ label, color, fixedMax = 0, baseline = 0, format, formatDelta }) {
     this.color = color;
     this.fixedMax = fixedMax;
     this.baseline = baseline;
     this.format = format || ((v) => v.toFixed(2));
+    this.formatDelta = formatDelta || ((v) => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2));
 
     this.data = new Float32Array(HISTORY);
+    this.window = new Float64Array(DELTA_WINDOW); // scratch, reused each sample
     this.head = 0;
     this.filled = 0;
     this.scale = fixedMax || 1;
@@ -25,7 +46,13 @@ export class Sparkline {
     this.value = document.createElement('i');
     this.value.style.color = color;
     this.value.textContent = '–';
-    top.append(name, this.value);
+    this.delta = document.createElement('em');
+    this.delta.className = 'delta';
+    this.delta.textContent = '–';
+    const readout = document.createElement('span');
+    readout.className = 'readout';
+    readout.append(this.value, this.delta);
+    top.append(name, readout);
 
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
@@ -49,6 +76,8 @@ export class Sparkline {
     this.filled = 0;
     this.scale = this.fixedMax || 1;
     this.value.textContent = '–';
+    this.delta.textContent = '–';
+    this.delta.className = 'delta';
     this.draw();
   }
 
@@ -58,7 +87,28 @@ export class Sparkline {
     this.head = (this.head + 1) % HISTORY;
     if (this.filled < HISTORY) this.filled++;
     this.value.textContent = this.format(v);
+
+    const change = this.trend();
+    if (change === null) {
+      this.delta.textContent = '–';
+      this.delta.className = 'delta';
+    } else {
+      this.delta.textContent = this.formatDelta(change);
+      // A hair either side of zero is noise, not a trend.
+      const flat = Math.abs(change) < 1e-3;
+      this.delta.className = 'delta' + (flat ? '' : change > 0 ? ' up' : ' down');
+    }
     this.draw();
+  }
+
+  // Mean of the newest half of the window minus the mean of the older half,
+  // or null until there are enough samples to say anything.
+  trend() {
+    if (this.filled < DELTA_WINDOW) return null;
+    for (let k = 0; k < DELTA_WINDOW; k++) {
+      this.window[DELTA_WINDOW - 1 - k] = this.at(this.filled - 1 - k);
+    }
+    return meanDelta(this.window);
   }
 
   // Oldest-to-newest index walk over the ring.
