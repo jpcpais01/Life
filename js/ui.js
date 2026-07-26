@@ -4,6 +4,7 @@
 import { TYPES, MAX_TYPES, MAX_PARTICLES } from './state.js';
 import { PRESETS } from './presets.js';
 import { Sparkline, TREND_MIN, TREND_MAX } from './spark.js';
+import { NATURAL } from './natural.js';
 
 const STORE_KEY = 'life.settings.v1';
 
@@ -50,7 +51,7 @@ function slider({ label, min, max, step, get, set, fmt }) {
   return row;
 }
 
-export function buildUI(state, view, onChange, onPreset) {
+export function buildUI(state, view, onChange, onPreset, onNatural) {
   const p = state.params;
   const refresh = [];
 
@@ -129,6 +130,21 @@ export function buildUI(state, view, onChange, onPreset) {
   };
 
   rebuildOptions();
+
+  // ---------------- natural randomizers ----------------
+  const naturalRow = document.getElementById('naturalRow');
+  const naturalNote = document.getElementById('naturalNote');
+  for (const gen of NATURAL) {
+    const b = document.createElement('button');
+    b.textContent = gen.name;
+    b.title = gen.note;
+    b.addEventListener('click', () => {
+      gen.build(state.attract, state.repel, state.mass);
+      naturalNote.textContent = `${gen.name} — ${gen.note}`;
+      onNatural();
+    });
+    naturalRow.append(b);
+  }
 
   select.addEventListener('change', () => {
     const key = select.value;

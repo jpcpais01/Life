@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../js/sim.js';
 import { PRESETS, applyPreset } from '../js/presets.js';
+import { NATURAL } from '../js/natural.js';
 import { MAX_TYPES, DEFAULT_TYPES, WORLD, randomizeForces } from '../js/state.js';
 
 const SOFT = 16;
@@ -321,6 +322,72 @@ test('a merged particle pulls as hard as its parts did', () => {
   assert.ok(apart > 0, 'the observer should be pulled toward the mass');
   assert.ok(Math.abs(merged - apart) < 1e-6,
     `merged pull ${merged} should match two separate particles ${apart}`);
+});
+
+test('the render buffer carries each particle mass', () => {
+  // The renderer sizes points from this, so a merged particle that shipped its
+  // mass as 1 would silently draw at the wrong size.
+  const sim = makeSim(4);
+  sim.pmass[0] = 9;
+  sim.pmass[1] = 1;
+  const out = new Float32Array(4 * 4);
+  const n = sim.writeRenderBuffer(out);
+  assert.equal(n, 4);
+  const masses = [];
+  for (let i = 0; i < n; i++) {
+    assert.ok(out[i * 4 + 2] >= 0 && out[i * 4 + 2] < MAX_TYPES, 'colour out of range');
+    masses.push(out[i * 4 + 3]);
+  }
+  assert.ok(masses.includes(9), 'a heavy particle did not reach the renderer');
+  // Radius goes as the square root, so mass 9 draws three times as wide.
+  assert.equal(Math.sqrt(9), 3);
+});
+
+test('every natural shuffle is collapse-free and non-reciprocal', () => {
+  for (const gen of NATURAL) {
+    for (let run = 0; run < 40; run++) {
+      const attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+      const repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+      const mass = new Float32Array(MAX_TYPES);
+      gen.build(attract, repel, mass);
+
+      let asymmetric = 0;
+      for (let a = 0; a < MAX_TYPES; a++) {
+        for (let b = 0; b < MAX_TYPES; b++) {
+          const ij = a * MAX_TYPES + b, ji = b * MAX_TYPES + a;
+          // Repulsion above attraction on every pair, or that pair falls into
+          // a point. Each rule builds R as A plus a gap to guarantee it.
+          assert.ok(repel[ij] > attract[ij],
+            `${gen.name}: ${a},${b} has R ${repel[ij]} <= A ${attract[ij]}`);
+          assert.ok(attract[ij] >= 0 && attract[ij] <= 1, 'attraction out of range');
+          assert.ok(repel[ij] >= 0 && repel[ij] <= 1, 'repulsion out of range');
+          if (a !== b && Math.abs(attract[ij] - attract[ji]) > 0.01) asymmetric++;
+        }
+      }
+      // A perfectly reciprocal matrix reaches equilibrium and stops dead, so
+      // each rule carries a directional term. It must actually bite.
+      assert.ok(asymmetric > 0, `${gen.name}: produced a fully reciprocal matrix`);
+
+      for (let t = 0; t < MAX_TYPES; t++) {
+        assert.ok(mass[t] >= 0.1 && mass[t] <= 3, `${gen.name}: mass ${mass[t]} out of slider range`);
+      }
+    }
+  }
+});
+
+test('natural shuffles fill the whole matrix, not just the active colours', () => {
+  // Same contract as the plain shuffle: raising the colour count afterwards
+  // must reveal colours that already interact.
+  for (const gen of NATURAL) {
+    const attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const mass = new Float32Array(MAX_TYPES);
+    gen.build(attract, repel, mass);
+    for (let i = 0; i < MAX_TYPES * MAX_TYPES; i++) {
+      assert.ok(repel[i] > 0, `${gen.name}: entry ${i} left unset`);
+    }
+    for (let t = 0; t < MAX_TYPES; t++) assert.ok(mass[t] > 0, `${gen.name}: mass ${t} unset`);
+  }
 });
 
 test('a zeroed matrix leaves particles motionless', () => {

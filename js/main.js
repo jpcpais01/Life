@@ -35,6 +35,16 @@ const ui = buildUI(state, view, () => {
   ui.refreshAll();
   host.sync();
   scheduleSave();
+}, () => {
+  // A natural shuffle writes the whole matrix, so it is a custom configuration
+  // like any hand edit — the picker has to say so. Its own note is a separate
+  // line and stays put, since that is what says which rule was used.
+  state.preset = null;
+  ui.markCustom();
+  ui.clearSignals();
+  ui.refreshAll();
+  host.sync();
+  saveSettings(state, view);
 });
 ui.showPreset(state.preset);
 

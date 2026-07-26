@@ -383,14 +383,16 @@ export class Simulation {
     }
   }
 
-  // Pack [x, y, type] triples for the renderer.
+  // Pack [x, y, type, mass] quads for the renderer. Mass rides along so a
+  // merged particle can be drawn at the size its parts occupied.
   writeRenderBuffer(out) {
     const n = this.count;
-    const pos = this.pos, type = this.type;
-    for (let i = 0, k = 0; i < n; i++, k += 3) {
+    const pos = this.pos, type = this.type, pmass = this.pmass;
+    for (let i = 0, k = 0; i < n; i++, k += 4) {
       out[k] = pos[i * 2];
       out[k + 1] = pos[i * 2 + 1];
       out[k + 2] = type[i];
+      out[k + 3] = pmass[i];
     }
     return n;
   }

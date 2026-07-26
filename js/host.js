@@ -8,7 +8,7 @@ import { StatsProbe } from './stats.js';
 
 const SAMPLE_MS = 100;
 
-const FLOATS = MAX_PARTICLES * 3; // [x, y, type] per particle
+const FLOATS = MAX_PARTICLES * 4; // [x, y, type, mass] per particle
 
 class WorkerHost {
   constructor(state, worker) {
@@ -73,7 +73,7 @@ class WorkerHost {
     this.frame = f;
     const signals = this.signals;
     this.signals = null;
-    return { data: new Float32Array(f.buf, 0, f.n * 3), n: f.n, signals };
+    return { data: new Float32Array(f.buf, 0, f.n * 4), n: f.n, signals };
   }
 
   endFrame() {

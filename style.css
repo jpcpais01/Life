@@ -194,6 +194,28 @@ section h2 {
 .saveform-actions { display: flex; gap: 6px; }
 .saveform-actions button { flex: 1; }
 
+.natural { margin-bottom: 10px; }
+.naturalhead {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 5px;
+}
+.naturalrow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.naturalrow button {
+  padding: 7px 4px;
+  font-size: 11px;
+  border-color: #2f4a5c;
+  color: #b8e2f5;
+}
+.naturalrow button:hover { background: #16242c; border-color: #3f6880; }
+#naturalNote { margin: 6px 0 0; min-height: 1.4em; }
+
 .buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -6,13 +6,16 @@ import { TYPES, MAX_TYPES, WORLD, MAX_PARTICLES } from './state.js';
 const VERT = `#version 300 es
 in vec2 aPos;
 in float aType;
+in float aMass;
 uniform float uSize;
 uniform vec3 uColors[${MAX_TYPES}];
 out vec3 vColor;
 void main() {
   vec2 p = aPos / ${WORLD.toFixed(1)} * 2.0 - 1.0;
   gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
-  gl_PointSize = uSize;
+  // Mass behaves like area, so radius goes as its square root: a merged
+  // particle covers the pixels its parts did instead of ballooning.
+  gl_PointSize = uSize * sqrt(aMass);
   vColor = uColors[int(aType)];
 }`;
 
@@ -96,13 +99,16 @@ export class Renderer {
     gl.bindVertexArray(this.vao);
     this.vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, MAX_PARTICLES * 3 * 4, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, MAX_PARTICLES * 4 * 4, gl.DYNAMIC_DRAW);
     const aPos = gl.getAttribLocation(this.prog, 'aPos');
     const aType = gl.getAttribLocation(this.prog, 'aType');
+    const aMass = gl.getAttribLocation(this.prog, 'aMass');
     gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 12, 0);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
     gl.enableVertexAttribArray(aType);
-    gl.vertexAttribPointer(aType, 1, gl.FLOAT, false, 12, 8);
+    gl.vertexAttribPointer(aType, 1, gl.FLOAT, false, 16, 8);
+    gl.enableVertexAttribArray(aMass);
+    gl.vertexAttribPointer(aMass, 1, gl.FLOAT, false, 16, 12);
     gl.bindVertexArray(null);
 
     // Fullscreen quad used for the fade/clear pass.
@@ -157,7 +163,7 @@ export class Renderer {
     this.dpr = dpr;
   }
 
-  // `data` is an interleaved [x, y, type] view produced by the simulation.
+  // `data` is an interleaved [x, y, type, mass] view from the simulation.
   draw(data, n, opts) {
     const scale = this.pxSize / WORLD;
     // Floor at 2 CSS pixels. A radius in world units renders less than half as
@@ -183,7 +189,7 @@ export class Renderer {
     gl.uniform1f(this.uSize, size);
     gl.bindVertexArray(this.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, n * 3);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, n * 4);
     gl.drawArrays(gl.POINTS, 0, n);
     gl.bindVertexArray(null);
   }
@@ -196,9 +202,10 @@ export class Renderer {
     ctx.fillRect(0, 0, s, s);
     ctx.globalCompositeOperation = 'lighter';
     const scale = s / WORLD;
-    const h = size * 0.5;
-    for (let i = 0, k = 0; i < n; i++, k += 3) {
-      ctx.drawImage(this.sprites[data[k + 2]], data[k] * scale - h, data[k + 1] * scale - h, size, size);
+    for (let i = 0, k = 0; i < n; i++, k += 4) {
+      const px = size * Math.sqrt(data[k + 3]);
+      const h = px * 0.5;
+      ctx.drawImage(this.sprites[data[k + 2]], data[k] * scale - h, data[k + 1] * scale - h, px, px);
     }
   }
 }
