@@ -88,6 +88,45 @@ The rest is asymmetry. `A[i][j] ≠ A[j][i]` means i chases j while j flees, and
 that is the only thing keeping any of these in motion — Foam sets solid within
 seconds if its cross-repulsion is made symmetric.
 
+## Natural randomize
+
+The plain shuffle draws all 200 numbers independently, so no pair bears any
+relation to any other — the matrix carries no idea, and a good result is luck.
+Real interaction tables are never like that. They are *generated*: a handful of
+intrinsic properties per species, and a rule that turns any two of those
+properties into an interaction. That is why real matter and real ecosystems
+have recognisable structure at all.
+
+Three buttons do the same thing here. Each gives every colour two or three
+hidden traits, derives all 200 entries from a rule over those traits, and
+jitters the result — random in its traits, coherent in its consequences.
+
+**Chemistry** gives each colour a charge, a core radius and an
+electronegativity. Opposite charges bond and like charges do not; bond length
+comes from the cores, so two large colours sit further apart than two small
+ones, exactly as in real matter. The electronegativity difference supplies the
+asymmetry — the greedier of a pair pulls harder than it is pulled.
+
+**Food web** uses the niche model of Williams and Martinez: each colour sits at
+a point on a one-dimensional niche axis and eats everything inside a feeding
+window centred *below* itself, so predation always runs downhill and nothing
+eats itself. Three numbers per species reproduce the structure of real food
+webs, and mass climbs with niche value.
+
+**Tissue** is Steinberg's differential adhesion hypothesis: cells need no
+instructions about where to go. Give each colour one stickiness value, let
+adhesion between two follow the geometric mean, and a mixture sorts itself into
+layers with the stickiest at the core — which is how embryonic tissue actually
+does it. A motility trait makes some colours crawl up the adhesion gradient,
+supplying the asymmetry.
+
+Every rule builds repulsion as attraction *plus a gap*, so `R > A` holds by
+construction and no pair can collapse to a point; the gap is where each model
+puts its own idea of how close is too close. And every rule carries a
+deliberate directional term, because a perfectly reciprocal matrix reaches
+equilibrium and stops dead — there is a test asserting each one actually
+produces asymmetry.
+
 Editing any force, mass or the colour count switches the picker to *Custom*;
 nothing is lost. **Save configuration** names the current matrix, masses and
 colour count and adds it to the picker under *Saved*, stored in local storage;
