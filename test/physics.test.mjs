@@ -400,6 +400,65 @@ test('the tissue rule produces an interfacial cost, or it cannot sort', () => {
   assert.ok(share > 0.85, `only ${(share * 100).toFixed(0)}% of pairs carry an interfacial cost`);
 });
 
+test("the neural rule obeys Dale's law", () => {
+  // A neuron excites everything it touches or inhibits everything it touches,
+  // never both. That is a constraint on a whole column — the sign belongs to
+  // the colour doing the acting — and it is the one thing that makes this rule
+  // different from the others, so it is worth pinning.
+  const neural = NATURAL.find((n) => n.key === 'neural');
+  let clean = 0, total = 0;
+  for (let run = 0; run < 30; run++) {
+    const attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const mass = new Float32Array(MAX_TYPES);
+    neural.build(attract, repel, mass);
+    for (let j = 0; j < MAX_TYPES; j++) {
+      let attracts = 0, pushes = 0;
+      for (let i = 0; i < MAX_TYPES; i++) {
+        if (i === j) continue;
+        const ij = i * MAX_TYPES + j;
+        if (attract[ij] > 0.15) attracts++;
+        else if (repel[ij] - attract[ij] > 0.25) pushes++;
+      }
+      if (attracts === 0 || pushes === 0) clean++;
+      total++;
+    }
+  }
+  assert.equal(clean, total, `${total - clean} columns mixed excitation with inhibition`);
+});
+
+test('the golden angle leaves no two colours in the same relation', () => {
+  // Phyllotaxis is here for its non-degeneracy: ten points on a regular ring
+  // give only 5 distinct separations among 45 pairs, because the symmetry
+  // makes most pairs interchangeable. The golden angle gives all 45.
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  const spread = (angleOf, radiusOf) => {
+    const pts = [];
+    for (let t = 0; t < MAX_TYPES; t++) {
+      const r = radiusOf(t);
+      const th = angleOf(t);
+      pts.push([r * Math.cos(th), r * Math.sin(th)]);
+    }
+    const seen = new Set();
+    for (let i = 0; i < MAX_TYPES; i++) {
+      for (let j = i + 1; j < MAX_TYPES; j++) {
+        seen.add(Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]).toFixed(6));
+      }
+    }
+    return seen.size;
+  };
+  const pairs = (MAX_TYPES * (MAX_TYPES - 1)) / 2;
+  const sqrtR = (t) => Math.sqrt(t + 0.5);
+  assert.equal(spread((t) => (t + 0.5) * GOLDEN, sqrtR), pairs,
+    'the golden angle should leave no ties');
+
+  // The control has to hold the radius constant. A rational angle on a growing
+  // radius is a spiral, not a ring, and the differing radii break the ties on
+  // their own — so that comparison would prove nothing about the angle.
+  assert.ok(spread((t) => (2 * Math.PI * t) / MAX_TYPES, () => 1) < pairs / 4,
+    'a regular ring should be badly degenerate, or the test proves nothing');
+});
+
 test('natural shuffles fill the whole matrix, not just the active colours', () => {
   // Same contract as the plain shuffle: raising the colour count afterwards
   // must reveal colours that already interact.

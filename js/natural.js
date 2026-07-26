@@ -279,6 +279,147 @@ function morphogenesis(attract, repel, mass) {
   }
 }
 
+// -------------------------------------------------------------- phyllotaxis
+
+function fibonacci(attract, repel, mass) {
+  // Phyllotaxis, the reason Fibonacci numbers turn up in plants at all. Each
+  // new primordium on a growing tip appears one golden angle round from the
+  // last, at a radius growing as the square root of its index — Vogel's model
+  // of a sunflower head. The visible spiral counts come out as consecutive
+  // Fibonacci numbers as a *consequence*, because the golden angle is the most
+  // irrational number there is and so no two elements ever line up.
+  //
+  // That is the useful property here. Laying ten colours on a regular ring
+  // gives only 5 distinct separations among the 45 pairs — the symmetry makes
+  // most pairs interchangeable. The golden angle gives all 45, the closest two
+  // differing by 0.0026, so no two colours stand in the same relation to the
+  // rest. (The table itself stores 0.01 steps, so some of that fineness is
+  // rounded away; the arrangement is what carries the property.) Interaction
+  // then follows how close two colours land in the head.
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));   // 137.507 degrees
+  const x = [], y = [], radius = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    const r = Math.sqrt(t + 0.5);
+    const theta = (t + 0.5) * GOLDEN;
+    radius.push(r);
+    x.push(r * Math.cos(theta));
+    y.push(r * Math.sin(theta));
+  }
+  const maxR = Math.sqrt(MAX_TYPES);
+  for (let t = 0; t < MAX_TYPES; t++) {
+    // Outer florets are the older ones, and bigger for it.
+    mass[t] = round2(clamp(0.5 + 1.8 * (radius[t] / maxR), 0.1, 3));
+  }
+
+  // How far round the head a colour still notices its neighbours.
+  const reach = rand(0.45, 0.95);
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      if (i === j) {
+        write(attract, repel, 0.42 + jitter(0.06), 0.42 + 0.20 + jitter(0.05), i, j);
+        continue;
+      }
+      const d = Math.hypot(x[i] - x[j], y[i] - y[j]) / maxR;
+      const near = Math.max(0, 1 - d / reach);
+      // Growth runs outward from the tip, so each floret is drawn back toward
+      // the ones nearer the centre. That gives the table its asymmetry.
+      const inward = 0.26 * Math.max(0, (radius[i] - radius[j]) / maxR);
+      const a = 0.05 + 0.62 * near + inward + jitter(0.05);
+      const gap = 0.10 + 0.34 * Math.min(1, d) + jitter(0.04);
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ kinship
+
+function kinship(attract, repel, mass) {
+  // Hamilton's rule: help others in proportion to how closely related they
+  // are. Give the palette a phylogeny — a lineage of binary splits — and let
+  // relatedness fall off with the depth at which two colours diverged.
+  //
+  // The resulting table is ultrametric rather than flat, which none of the
+  // other rules produce: colours form families, families form clans, and the
+  // structure that appears is nested rather than merely sorted.
+  const DEPTH = 4;
+  const lineage = [], generosity = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    const bits = [];
+    let ones = 0;
+    for (let d = 0; d < DEPTH; d++) {
+      const b = Math.random() < 0.5 ? 1 : 0;
+      bits.push(b);
+      ones += b;
+    }
+    lineage.push(bits);
+    generosity.push(rand(0, 1));
+    // Kin resemble one another, so mass follows the lineage rather than chance.
+    mass[t] = round2(clamp(0.6 + 1.4 * (ones / DEPTH), 0.1, 3));
+  }
+
+  const related = (i, j) => {
+    let shared = 0;
+    while (shared < DEPTH && lineage[i][shared] === lineage[j][shared]) shared++;
+    return shared / DEPTH;
+  };
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      const r = i === j ? 1 : related(i, j);
+      // A generous colour gives more to its kin than it gets back, which is
+      // the asymmetry — and is exactly the situation Hamilton's rule describes.
+      const a = 0.05 + 0.66 * Math.pow(r, 1.2) + 0.20 * generosity[i] * r + jitter(0.05);
+      const gap = 0.10 + 0.34 * (1 - r) + jitter(0.04);
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
+// ------------------------------------------------------------------- neural
+
+function neural(attract, repel, mass) {
+  // Dale's law: a neuron is excitatory or inhibitory to everything it touches,
+  // never both. That is a constraint on a whole column of the table — the sign
+  // of a colour's effect belongs to the colour doing the acting, not to the
+  // pair — and no other rule here has one.
+  //
+  // Cortex runs about four excitatory cells to one inhibitory, with the few
+  // inhibitory ones acting more strongly. That ratio is what keeps a network
+  // from either falling silent or running away, and it does the same here.
+  const excitatory = [], gain = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    const exc = Math.random() < 0.75;
+    excitatory.push(exc);
+    gain.push(exc ? rand(0.6, 1) : rand(1.4, 2.4));
+    mass[t] = round2(clamp(exc ? rand(0.6, 1.2) : rand(1.4, 2.4), 0.1, 3));
+  }
+  // Sparse wiring, and drawn independently per direction — what i receives
+  // from j has nothing to do with what j receives from i.
+  const density = rand(0.4, 0.85);
+  const weight = () => (Math.random() < density ? rand(0.3, 1) : 0);
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      if (i === j) {
+        write(attract, repel, 0.44 + jitter(0.06), 0.44 + 0.18 + jitter(0.05), i, j);
+        continue;
+      }
+      const w = weight();
+      let a, gap;
+      if (excitatory[j]) {
+        a = 0.05 + 0.70 * w * Math.min(1, gain[j]) + jitter(0.04);
+        gap = 0.10 + 0.14 * (1 - w);
+      } else {
+        // Inhibition is a push, and the strong few reach further than the many.
+        a = 0.02 + jitter(0.02);
+        gap = 0.16 + 0.34 * w * gain[j] + jitter(0.04);
+      }
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
 export const NATURAL = [
   {
     key: 'chemistry',
@@ -315,5 +456,23 @@ export const NATURAL = [
     name: 'Morphogen',
     note: 'Activator and inhibitor: Turing spots',
     build: morphogenesis,
+  },
+  {
+    key: 'fibonacci',
+    name: 'Fibonacci',
+    note: 'Golden-angle packing, as in a sunflower head',
+    build: fibonacci,
+  },
+  {
+    key: 'kinship',
+    name: 'Kinship',
+    note: 'Help your relatives: families inside clans',
+    build: kinship,
+  },
+  {
+    key: 'neural',
+    name: 'Neural',
+    note: "Dale's law: a colour only excites, or only inhibits",
+    build: neural,
   },
 ];

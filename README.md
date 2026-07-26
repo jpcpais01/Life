@@ -97,7 +97,7 @@ intrinsic properties per species, and a rule that turns any two of those
 properties into an interaction. That is why real matter and real ecosystems
 have recognisable structure at all.
 
-Six buttons do the same thing here. Each gives every colour a few hidden
+Nine buttons do the same thing here. Each gives every colour a few hidden
 traits, derives all 200 entries from a rule over those traits, and jitters the
 result — random in its traits, coherent in its consequences.
 
@@ -168,6 +168,34 @@ above repulsion on half the diagonal, so colours fall into dots, and at five
 colours one shuffle in ten ended with the entire world in a single lump. The
 rules cannot do that. Low clustering with high segregation, as Morphogen and
 Lock & key show, is an evenly spaced arrangement rather than a poor one.
+
+**Fibonacci** is phyllotaxis — the reason Fibonacci numbers turn up in plants
+at all. Each new primordium on a growing tip appears one golden angle round
+from the last, at a radius growing as the square root of its index, and the
+visible spiral counts come out as consecutive Fibonacci numbers *as a
+consequence*, because the golden angle is the most irrational number there is
+and so no two elements line up. Laying the colours out that way is what earns
+it a place: ten points on a regular ring give only 5 distinct separations among
+their 45 pairs, since the symmetry makes most pairs interchangeable, while the
+golden angle gives all 45. No two colours stand in the same relation to the
+rest. Growth runs outward from the tip, so each colour is drawn back toward
+those nearer the centre, which supplies the asymmetry.
+
+**Kinship** is Hamilton's rule: help others in proportion to how closely
+related they are. The palette gets a phylogeny — a lineage of binary splits —
+and relatedness falls off with the depth at which two colours diverged. The
+resulting table is *ultrametric* rather than flat, which none of the others
+are: colours form families, families form clans, and what appears is nested
+rather than merely sorted. Kin resemble one another, so mass follows the
+lineage too.
+
+**Neural** is Dale's law: a neuron excites everything it touches or inhibits
+everything it touches, never both. That is a constraint on a whole *column* —
+the sign of a colour's effect belongs to the colour doing the acting rather
+than to the pair — and no other rule here has one. Cortex runs about four
+excitatory cells to one inhibitory, with the few inhibitory ones acting more
+strongly, and that ratio is what keeps a network from either falling silent or
+running away.
 
 Every rule builds repulsion as attraction *plus a gap*, so `R > A` holds by
 construction and no pair can collapse to a point; the gap is where each model
