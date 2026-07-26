@@ -339,16 +339,20 @@ export const PRESETS = [
 
   {
     name: 'Two tribes',
-    note: 'Five against five, with a traitor on each side',
+    note: 'Five advance, five retreat, and the front never holds',
     // Colours 0-4 and 5-9 cohere internally and repel across the divide, so
-    // each claims territory and they meet along a front. Left symmetric that
-    // front would settle, so one colour on each side is drawn to a specific
-    // enemy that does not return the interest -- those two chase across the
-    // border and keep dragging the front open.
+    // each claims territory and they meet along a front.
+    //
+    // Mutual hostility alone reaches equilibrium and the front sets solid --
+    // measured at churn 0.08 against 0.62 for Onion. So each colour in the
+    // first tribe is paired with an opposite number in the second and pursues
+    // it, while that opposite number flees. Five one-way chases spread along
+    // the whole border, rather than a couple of special cases, is what keeps
+    // it open: one tribe is permanently advancing and the other giving ground.
     ...fromRule(10, (a, b) => {
       const sameTribe = (a < 5) === (b < 5);
-      if (a === 4 && b === 5) return [0.55, 0.90];  // traitor, one way only
-      if (a === 9 && b === 0) return [0.55, 0.90];
+      if (a < 5 && b === a + 5) return [0.45, 0.85];  // pursue your opposite number
+      if (a >= 5 && b === a - 5) return [0.00, 0.75]; // who wants no part of it
       if (!sameTribe) return [0.00, 0.65];
       if (a === b) return [0.55, 0.80];
       return [0.45, 0.80];
@@ -363,10 +367,16 @@ export const PRESETS = [
     // the middle -- the base has nothing to hunt and the apex nothing to fear
     // -- which is exactly what a closed cycle cannot give you. Heavy top ranks
     // scatter the light ones from far off, so the column never stops shifting.
+    //
+    // Each rank only interacts strongly with two of the other nine, which left
+    // the world a thin gas at barely above a random scatter. Self-cohesion is
+    // therefore tight (0.62 against 0.76, settling near 8 units) so each rank
+    // travels as a dense band, and the ranks stay distinct because it is
+    // cohesion doing the work rather than any cross-colour attraction.
     ...fromRule(10, (a, b) => {
       if (b === a - 1) return [0.85, 0.95];   // hunt the rank below
       if (b === a + 1) return [0.00, 0.80];   // flee the rank above
-      if (a === b) return [0.55, 0.78];       // travel in packs
+      if (a === b) return [0.62, 0.76];       // travel in tight packs
       return [0.03, 0.20];
     }, (t) => Math.round((0.6 + t * 0.18) * 20) / 20),
   },
@@ -384,7 +394,7 @@ export const PRESETS = [
       if (step === 1) return [0.75, 1.00];    // bound to the next
       if (step === 2) return [0.00, 0.70];    // shoved by the one after that
       if (step === 9) return [0.15, 0.55];    // faint pull back down the chain
-      if (a === b) return [0.45, 0.75];
+      if (a === b) return [0.55, 0.72];       // tight enough to turn as a body
       return [0.02, 0.35];
     }, (t) => (t % 2 ? 1.4 : 0.8)),
   },
