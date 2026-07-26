@@ -160,11 +160,21 @@ steps/frame to 2 — same pace, crisper structure, double the CPU.
 
 **Signals** — four live traces of what the world is actually doing, sampled at
 10 Hz alongside the physics. Each shows its current value and, beside it, the
-change over the last 12 samples — about 1.2 seconds — so you can see whether
-something is still settling or has stopped moving. That change is the mean of
-the newest six samples minus the mean of the previous six rather than a
-first-versus-last difference, which on a noisy trace flickers sign even while
-the trace is plainly climbing. The measures are: clustering (with a dashed line at 1.0, the value a
+change over a trend window you set with a slider — 12 to 1000 samples, or 1.2
+to 100 seconds — so you can see whether something is still settling or has
+stopped moving.
+
+That change is the mean of the newest half of the window minus the mean of the
+older half, rather than a first-versus-last difference, which on a noisy trace
+flickers sign even while the trace is plainly climbing. Widening the window
+smooths harder: a lone spike shifts a 12-sample reading by a sixth of itself
+and a 200-sample reading by a two-hundredth. It does not stretch the picture —
+the traces always show the last ~20 seconds — so a wide window reports over
+more history than you can see. And note that a wider window naturally reports a
+*larger* number, since it measures across a longer span; only its relative
+steadiness improves.
+
+The measures are: clustering (with a dashed line at 1.0, the value a
 purely random scatter would give), how separated the colours are, interacting
 partners per particle, and mean speed. They restart on a respawn, a shuffle or
 a preset change, so you can watch a configuration settle from scratch. A sample

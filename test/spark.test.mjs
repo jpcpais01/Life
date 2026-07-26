@@ -4,7 +4,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { meanDelta, DELTA_WINDOW } from '../js/spark.js';
+import { meanDelta, TREND_DEFAULT, TREND_MIN, TREND_MAX } from '../js/spark.js';
+
+const DELTA_WINDOW = TREND_DEFAULT;
 
 const ramp = (from, to) =>
   Array.from({ length: DELTA_WINDOW }, (_, i) => from + ((to - from) * i) / (DELTA_WINDOW - 1));
@@ -46,4 +48,40 @@ test('a single spike does not flip the trend', () => {
   const spiked = meanDelta(flat);
   // It moves, but by a sixth of the spike rather than all of it.
   assert.equal(Math.round(spiked * 1e6) / 1e6, 1);
+});
+
+test('a wider window smooths harder', () => {
+  // A rising ramp, with and without one wild sample near the end. Comparing
+  // the raw readings across window sizes would be meaningless — a wider window
+  // also measures the ramp over a longer baseline, so its number is naturally
+  // bigger. What matters is how much the spike *shifts* each reading.
+  const n = 200;
+  const clean = Array.from({ length: n }, (_, i) => i * 0.01);
+  const spiked = clean.slice();
+  spiked[n - 2] += 20;
+
+  const shift = (size) =>
+    meanDelta(spiked.slice(-size), size) - meanDelta(clean.slice(-size), size);
+
+  const narrow = shift(TREND_MIN);
+  const wide = shift(n);
+  assert.ok(narrow > 3, `a 12-sample window should be thrown by the spike, got ${narrow}`);
+  assert.ok(wide < 0.25, `a 200-sample window should barely register it, got ${wide}`);
+  assert.ok(narrow > wide * 10, 'the wide window should dilute the spike by an order of magnitude');
+
+  // And the underlying climb survives either way.
+  assert.ok(meanDelta(clean.slice(-TREND_MIN), TREND_MIN) > 0);
+  assert.ok(meanDelta(clean, n) > 0);
+});
+
+test('window size is respected and guarded', () => {
+  const values = Array.from({ length: 100 }, (_, i) => i);
+  // Not enough samples for the requested window.
+  assert.equal(meanDelta(values, 200), null);
+  // A ramp of one per sample reports half the window size, whatever it is.
+  for (const size of [TREND_MIN, 40, 100]) {
+    const got = meanDelta(values.slice(-size), size);
+    assert.equal(Math.round(got * 1e6) / 1e6, Math.floor(size / 2));
+  }
+  assert.ok(TREND_MIN === 12 && TREND_MAX === 1000, 'slider bounds');
 });

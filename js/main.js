@@ -90,7 +90,8 @@ function clearMatrix() {
 // since presets do not carry world settings either.
 function resetWorld() {
   Object.assign(state.params, DEFAULT_PARAMS);
-  Object.assign(view, DEFAULT_VIEW);
+  view.radius = DEFAULT_VIEW.radius;
+  view.fade = DEFAULT_VIEW.fade;
   state.count = DEFAULT_COUNT;
   ui.refreshAll();
   host.sync();

@@ -3,7 +3,7 @@
 
 import { TYPES, MAX_TYPES, MAX_PARTICLES } from './state.js';
 import { PRESETS } from './presets.js';
-import { Sparkline } from './spark.js';
+import { Sparkline, TREND_MIN, TREND_MAX } from './spark.js';
 
 const STORE_KEY = 'life.settings.v1';
 
@@ -207,6 +207,24 @@ export function buildUI(state, view, onChange, onPreset) {
     }),
   };
   for (const s of Object.values(sparks)) signals.append(s.el);
+
+  // How far back each readout looks. The traces themselves keep showing the
+  // last ~20 s whatever this is set to; a wide window smooths the number
+  // rather than stretching the picture.
+  const applyTrend = () => {
+    for (const s of Object.values(sparks)) s.setWindow(view.trend);
+  };
+  const trendSlider = slider({
+    label: 'Trend window', min: TREND_MIN, max: TREND_MAX, step: 1,
+    get: () => view.trend,
+    set: (v) => { view.trend = v | 0; applyTrend(); onChange(); },
+    // Samples are taken at 10 Hz, so seconds are the useful unit alongside.
+    fmt: (v) => `${v} · ${(v / 10).toFixed(v < 100 ? 1 : 0)} s`,
+  });
+  document.getElementById('trendRow').append(trendSlider);
+  refresh.push(trendSlider.refresh);
+  refresh.push(applyTrend);
+  applyTrend();
   const resizeSparks = () => { for (const s of Object.values(sparks)) s.resize(); };
   resizeSparks();
   new ResizeObserver(resizeSparks).observe(signals);
@@ -415,7 +433,7 @@ export function saveSettings(state, view) {
       attract: Array.from(state.attract),
       repel: Array.from(state.repel),
       mass: Array.from(state.mass),
-      view: { radius: view.radius, fade: view.fade },
+      view: { radius: view.radius, fade: view.fade, trend: view.trend },
       preset: state.preset,
     }));
   } catch { /* storage unavailable — not worth surfacing */ }
@@ -438,6 +456,9 @@ export function loadSettings(state, view) {
     if (s.view) {
       if (Number.isFinite(s.view.radius)) view.radius = s.view.radius;
       if (Number.isFinite(s.view.fade)) view.fade = s.view.fade;
+      if (Number.isFinite(s.view.trend)) {
+        view.trend = Math.min(TREND_MAX, Math.max(TREND_MIN, s.view.trend | 0));
+      }
     }
     state.preset = (Number.isInteger(s.preset) || typeof s.preset === 'string') ? s.preset : null;
     return true;

@@ -1,25 +1,32 @@
 // Small sparkline. A ring buffer over a canvas, redrawn only when a new sample
 // lands (~10/s) rather than every animation frame.
 
-const HISTORY = 200; // ~20 s at the 10 Hz sample rate
+// Storage has to cover the widest trend window. Drawing 1000 samples into
+// ~290px would be a smear, though, so the trace shows the most recent
+// DISPLAY_SPAN and a wide trend may look further back than the picture does.
+export const TREND_MIN = 12;
+export const TREND_MAX = 1000;
+export const TREND_DEFAULT = 12;
+const HISTORY = TREND_MAX;
+const DISPLAY_SPAN = 200; // ~20 s at the 10 Hz sample rate
 
-// Trend window, in samples — 12 at 10 Hz is a 1.2 s look-back. The change is
-// read as the mean of the newest half minus the mean of the older half rather
-// than as first-versus-last: a plain endpoint difference over a noisy signal
-// is itself noisy, and would flicker sign on a trace that is clearly climbing.
-export const DELTA_WINDOW = 12;
-const DELTA_HALF = DELTA_WINDOW / 2;
-
-// Exported and pure so the arithmetic can be tested without a DOM: `window` is
-// the last DELTA_WINDOW samples, oldest first.
-export function meanDelta(window) {
-  if (window.length < DELTA_WINDOW) return null;
+// Pure, so the arithmetic is testable without a DOM. `values` holds the last
+// `size` samples, oldest first.
+//
+// The change is the mean of the newest half minus the mean of the older half
+// rather than last-minus-first: these measurements are noisy enough that an
+// endpoint difference flips sign while the trace is plainly climbing, and one
+// wild sample would swing it by the whole spike instead of a fraction of it.
+export function meanDelta(values, size = TREND_DEFAULT) {
+  if (values.length < size) return null;
+  const half = Math.floor(size / 2);
+  if (half < 1) return null;
   let recent = 0, prior = 0;
-  for (let k = 0; k < DELTA_HALF; k++) {
-    recent += window[window.length - 1 - k];
-    prior += window[window.length - 1 - DELTA_HALF - k];
+  for (let k = 0; k < half; k++) {
+    recent += values[values.length - 1 - k];
+    prior += values[values.length - 1 - half - k];
   }
-  return (recent - prior) / DELTA_HALF;
+  return (recent - prior) / half;
 }
 
 export class Sparkline {
@@ -31,7 +38,8 @@ export class Sparkline {
     this.formatDelta = formatDelta || ((v) => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2));
 
     this.data = new Float32Array(HISTORY);
-    this.window = new Float64Array(DELTA_WINDOW); // scratch, reused each sample
+    this.window = new Float64Array(HISTORY); // scratch for the trend, reused
+    this.windowSize = TREND_DEFAULT;
     this.head = 0;
     this.filled = 0;
     this.scale = fixedMax || 1;
@@ -57,6 +65,11 @@ export class Sparkline {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     this.el.append(top, this.canvas);
+  }
+
+  setWindow(n) {
+    this.windowSize = Math.min(HISTORY, Math.max(TREND_MIN, n | 0));
+    this.showDelta();
   }
 
   resize() {
@@ -87,28 +100,30 @@ export class Sparkline {
     this.head = (this.head + 1) % HISTORY;
     if (this.filled < HISTORY) this.filled++;
     this.value.textContent = this.format(v);
+    this.showDelta();
+    this.draw();
+  }
 
+  showDelta() {
     const change = this.trend();
     if (change === null) {
       this.delta.textContent = '–';
       this.delta.className = 'delta';
-    } else {
-      this.delta.textContent = this.formatDelta(change);
-      // A hair either side of zero is noise, not a trend.
-      const flat = Math.abs(change) < 1e-3;
-      this.delta.className = 'delta' + (flat ? '' : change > 0 ? ' up' : ' down');
+      return;
     }
-    this.draw();
+    this.delta.textContent = this.formatDelta(change);
+    // A hair either side of zero is noise, not a trend.
+    const flat = Math.abs(change) < 1e-3;
+    this.delta.className = 'delta' + (flat ? '' : change > 0 ? ' up' : ' down');
   }
 
-  // Mean of the newest half of the window minus the mean of the older half,
-  // or null until there are enough samples to say anything.
   trend() {
-    if (this.filled < DELTA_WINDOW) return null;
-    for (let k = 0; k < DELTA_WINDOW; k++) {
-      this.window[DELTA_WINDOW - 1 - k] = this.at(this.filled - 1 - k);
+    const size = this.windowSize;
+    if (this.filled < size) return null;
+    for (let k = 0; k < size; k++) {
+      this.window[size - 1 - k] = this.at(this.filled - 1 - k);
     }
-    return meanDelta(this.window);
+    return meanDelta(this.window.subarray(0, size), size);
   }
 
   // Oldest-to-newest index walk over the ring.
@@ -122,13 +137,15 @@ export class Sparkline {
     const w = this.canvas.width, h = this.canvas.height;
     if (!w || !h) return;
     ctx.clearRect(0, 0, w, h);
-
     if (this.filled < 2) return;
+
+    const shown = Math.min(this.filled, DISPLAY_SPAN);
+    const first = this.filled - shown;
 
     let peak = this.fixedMax;
     if (!peak) {
       peak = 0;
-      for (let i = 0; i < this.filled; i++) peak = Math.max(peak, this.at(i));
+      for (let i = first; i < this.filled; i++) peak = Math.max(peak, this.at(i));
       peak = Math.max(peak, this.baseline * 1.3, 1e-6);
       // Ease toward the new scale so the trace does not jump on every sample.
       this.scale += (peak * 1.15 - this.scale) * 0.25;
@@ -137,9 +154,9 @@ export class Sparkline {
     }
     const top = this.scale || 1;
     // Newest sample pinned to the right edge, history trailing off to the left.
-    // Scaling x by `filled` instead would stretch the whole trace on every
-    // sample while the buffer fills.
-    const step = w / (HISTORY - 1);
+    // Scaling x by the number of samples collected instead would stretch the
+    // whole trace sideways on every sample while the buffer fills.
+    const step = w / (DISPLAY_SPAN - 1);
     const x = (i) => w - (this.filled - 1 - i) * step;
     const y = (v) => h - Math.min(1, Math.max(0, v / top)) * (h - 2) - 1;
 
@@ -155,23 +172,24 @@ export class Sparkline {
       ctx.setLineDash([]);
     }
 
-    ctx.beginPath();
-    ctx.moveTo(x(0), y(this.at(0)));
-    for (let i = 1; i < this.filled; i++) ctx.lineTo(x(i), y(this.at(i)));
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(x(first), y(this.at(first)));
+      for (let i = first + 1; i < this.filled; i++) ctx.lineTo(x(i), y(this.at(i)));
+    };
 
     // Fill under the trace, then stroke over it.
+    trace();
     ctx.save();
     ctx.lineTo(x(this.filled - 1), h);
-    ctx.lineTo(x(0), h);
+    ctx.lineTo(x(first), h);
     ctx.closePath();
     ctx.fillStyle = this.color;
     ctx.globalAlpha = 0.12;
     ctx.fill();
     ctx.restore();
 
-    ctx.beginPath();
-    ctx.moveTo(x(0), y(this.at(0)));
-    for (let i = 1; i < this.filled; i++) ctx.lineTo(x(i), y(this.at(i)));
+    trace();
     ctx.strokeStyle = this.color;
     ctx.lineWidth = Math.max(1, this.canvas.width / this.canvas.clientWidth);
     ctx.lineJoin = 'round';

@@ -63,7 +63,7 @@ export function randomizeForces(attract, repel, mass) {
 
 // Rendering defaults live here too, so one Reset restores the whole panel.
 export const DEFAULT_COUNT = 10000;
-export const DEFAULT_VIEW = { radius: 0.5, fade: 1 }; // fade 1 = no trails
+export const DEFAULT_VIEW = { radius: 0.5, fade: 1, trend: 12 }; // fade 1 = no trails
 
 export function createState() {
   const state = {
