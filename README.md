@@ -97,9 +97,9 @@ intrinsic properties per species, and a rule that turns any two of those
 properties into an interaction. That is why real matter and real ecosystems
 have recognisable structure at all.
 
-Three buttons do the same thing here. Each gives every colour two or three
-hidden traits, derives all 200 entries from a rule over those traits, and
-jitters the result — random in its traits, coherent in its consequences.
+Six buttons do the same thing here. Each gives every colour a few hidden
+traits, derives all 200 entries from a rule over those traits, and jitters the
+result — random in its traits, coherent in its consequences.
 
 **Chemistry** gives each colour a charge, a core radius and an
 electronegativity. Opposite charges bond and like charges do not; bond length
@@ -120,12 +120,37 @@ layers with the stickiest at the core — which is how embryonic tissue actually
 does it. A motility trait makes some colours crawl up the adhesion gradient,
 supplying the asymmetry.
 
+**Frustration** gives each colour a spin direction, with coupling following the
+angle between two of them. Two things earn it a place. Once there are more than
+two colours the angles cannot all be satisfied at once — that is frustration,
+and a frustrated system has no ground state to settle into. And real magnetic
+exchange has an antisymmetric part alongside the symmetric one, the
+Dzyaloshinskii–Moriya term that twists materials into spirals and skyrmions.
+Being antisymmetric by definition, it hands this model its non-reciprocity for
+free rather than as a bolt-on.
+
+**Lock & key** is receptor–ligand binding, how cells actually recognise one
+another. Each colour carries surface ligands and receptors, and binds another
+only where its receptors meet that colour's ligands — which is asymmetric by
+its nature, since what i's receptors find on j has nothing to do with what j's
+find on i. Matching is raised to a power so binding is *specific*: most pairs
+ignore each other and a few bind hard, giving a sparse matrix rather than a
+smoothly graded one.
+
+**Morphogen** is Turing's mechanism, the one behind spots and stripes on animal
+coats: a short-range activator that promotes both itself and a longer-range
+inhibitor which suppresses it. Neither substance carries the pattern — the
+pattern is what the loop settles into, at a spacing set by the two ranges.
+Colours are paired into activator/inhibitor systems with their own wavelengths,
+competing for the same ground.
+
 Every rule builds repulsion as attraction *plus a gap*, so `R > A` holds by
 construction and no pair can collapse to a point; the gap is where each model
 puts its own idea of how close is too close. And every rule carries a
-deliberate directional term, because a perfectly reciprocal matrix reaches
-equilibrium and stops dead — there is a test asserting each one actually
-produces asymmetry.
+directional term, because a perfectly reciprocal matrix reaches equilibrium and
+stops dead — there is a test asserting each one actually produces asymmetry,
+and another pinning the interfacial cost that makes Tissue sort, which was
+absent in the first version and left it sorting no better than chance.
 
 Editing any force, mass or the colour count switches the picker to *Custom*;
 nothing is lost. **Save configuration** names the current matrix, masses and

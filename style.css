@@ -207,6 +207,7 @@ section h2 {
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
 }
+.naturalrow button { min-width: 0; }
 .naturalrow button {
   padding: 7px 4px;
   font-size: 11px;

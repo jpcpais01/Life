@@ -375,6 +375,31 @@ test('every natural shuffle is collapse-free and non-reciprocal', () => {
   }
 });
 
+test('the tissue rule produces an interfacial cost, or it cannot sort', () => {
+  // Steinberg's sorting is driven entirely by unlike cells adhering less well
+  // than like ones. Without that cost a mixture has no reason to separate.
+  // This regressed once already: sqrt(ai*aj) is exactly the mean of ai and aj,
+  // so the plain geometric mean left 76% of pairs neutral and nothing sorted.
+  const tissue = NATURAL.find((n) => n.key === 'tissue');
+  let sorting = 0, total = 0;
+  for (let run = 0; run < 60; run++) {
+    const attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+    const mass = new Float32Array(MAX_TYPES);
+    tissue.build(attract, repel, mass);
+    for (let i = 0; i < MAX_TYPES; i++) {
+      for (let j = i + 1; j < MAX_TYPES; j++) {
+        const hetero = (attract[i * MAX_TYPES + j] + attract[j * MAX_TYPES + i]) / 2;
+        const homo = (attract[i * MAX_TYPES + i] + attract[j * MAX_TYPES + j]) / 2;
+        if (hetero < homo - 0.04) sorting++;
+        total++;
+      }
+    }
+  }
+  const share = sorting / total;
+  assert.ok(share > 0.85, `only ${(share * 100).toFixed(0)}% of pairs carry an interfacial cost`);
+});
+
 test('natural shuffles fill the whole matrix, not just the active colours', () => {
   // Same contract as the plain shuffle: raising the colour count afterwards
   // must reveal colours that already interact.

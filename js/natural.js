@@ -155,6 +155,130 @@ function tissue(attract, repel, mass) {
   }
 }
 
+// ------------------------------------------------------------- frustration
+
+function frustration(attract, repel, mass) {
+  // Magnetic exchange. Each colour carries a spin direction, and coupling
+  // follows the angle between two of them — aligned spins bond, opposed ones
+  // keep apart.
+  //
+  // Two things make this worth having. Angles cannot all be satisfied at once
+  // once there are more than two colours, which is frustration, and a
+  // frustrated system never finds a ground state to settle into. And real
+  // exchange has an antisymmetric part as well as a symmetric one: the
+  // Dzyaloshinskii-Moriya term, which is what twists magnetic materials into
+  // spirals and skyrmions. It is antisymmetric by definition, so it hands this
+  // model the non-reciprocity it needs for free rather than as an add-on.
+  const angle = [], strength = [], twist = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    angle.push(rand(0, Math.PI * 2));
+    strength.push(rand(0.4, 1));
+    twist.push(rand(0, 1));
+    mass[t] = round2(clamp(0.6 + 0.9 * strength[t], 0.1, 3));
+  }
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      const delta = angle[j] - angle[i];
+      const aligned = Math.max(0, Math.cos(delta));          // symmetric exchange
+      // sin is odd, so this term is equal and opposite between i,j and j,i.
+      const chiral = Math.max(0, twist[i] * Math.sin(delta));
+      const a = 0.08 + 0.50 * aligned * ((strength[i] + strength[j]) / 2)
+                + 0.30 * chiral + jitter(0.05);
+      const gap = 0.10 + 0.32 * (1 - aligned) + jitter(0.04);
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
+// ------------------------------------------------------------- lock and key
+
+function lockAndKey(attract, repel, mass) {
+  // Receptor-ligand binding, the way real cells actually recognise each other.
+  // Every colour carries a set of surface ligands and a set of receptors, and
+  // binds another only where its receptors meet that colour's ligands.
+  //
+  // This is asymmetric by its nature rather than by decoration: what i's
+  // receptors find on j has nothing to do with what j's receptors find on i.
+  // Matching is raised to a power so binding is specific — most pairs ignore
+  // each other entirely and a few bind hard, which is how real affinity works
+  // and gives a sparse matrix rather than a smoothly graded one.
+  const SITES = 6;
+  const ligand = [], receptor = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    let decorated = 0;
+    const l = [], r = [];
+    for (let s = 0; s < SITES; s++) {
+      const hasL = Math.random() < 0.4;
+      l.push(hasL ? 1 : 0);
+      r.push(Math.random() < 0.4 ? 1 : 0);
+      if (hasL) decorated++;
+    }
+    ligand.push(l);
+    receptor.push(r);
+    mass[t] = round2(clamp(0.6 + 1.4 * (decorated / SITES), 0.1, 3));
+  }
+
+  const affinity = (i, j) => {
+    let hits = 0;
+    for (let s = 0; s < SITES; s++) hits += receptor[i][s] * ligand[j][s];
+    return hits / SITES;
+  };
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      const bound = Math.pow(affinity(i, j), 1.5);
+      // A colour always recognises its own kind to some degree, or a colour
+      // whose receptors miss its own ligands would have no cohesion at all.
+      const a = (i === j ? 0.35 : 0.05) + 0.75 * bound + jitter(0.04);
+      const gap = 0.10 + 0.30 * (1 - Math.min(1, affinity(i, j) * 2)) + jitter(0.04);
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
+// ----------------------------------------------------------- morphogenesis
+
+function morphogenesis(attract, repel, mass) {
+  // Turing's mechanism, the one behind spots and stripes on animals: a
+  // short-range activator that promotes both itself and a longer-range
+  // inhibitor which suppresses it. Neither substance carries the pattern —
+  // the pattern is what the loop settles into, at a spacing set by the two
+  // ranges.
+  //
+  // Colours are paired into activator/inhibitor systems, each with its own
+  // wavelength, and the systems compete for the same ground.
+  const partner = [], isActivator = [], wavelength = [];
+  for (let t = 0; t < MAX_TYPES; t++) {
+    isActivator.push(t % 2 === 0);
+    partner.push(t % 2 === 0 ? (t + 1) % MAX_TYPES : t - 1);
+    wavelength.push(rand(0.35, 0.75));
+    mass[t] = round2(clamp(t % 2 === 0 ? rand(0.9, 1.6) : rand(0.5, 0.9), 0.1, 3));
+  }
+
+  for (let i = 0; i < MAX_TYPES; i++) {
+    for (let j = 0; j < MAX_TYPES; j++) {
+      let a, gap;
+      const sameSystem = partner[i] === j || i === j;
+      if (i === j) {
+        // An activator drives itself; an inhibitor merely spreads.
+        a = isActivator[i] ? 0.62 + rand(0, 0.14) : 0.12 + rand(0, 0.12);
+        gap = isActivator[i] ? 0.12 + jitter(0.03) : 0.22 + rand(0, 0.12);
+      } else if (sameSystem && isActivator[j]) {
+        a = 0.58 + rand(0, 0.2);        // inhibitor is produced where activator is
+        gap = 0.10 + jitter(0.03);
+      } else if (sameSystem) {
+        a = 0.0 + jitter(0.02);         // and pushes the activator away, far
+        gap = 0.40 + 0.45 * wavelength[i];
+      } else {
+        a = 0.03 + rand(0, 0.08);       // rival systems mostly keep clear
+        gap = 0.18 + rand(0, 0.16);
+      }
+      write(attract, repel, a, a + gap, i, j);
+    }
+  }
+}
+
 export const NATURAL = [
   {
     key: 'chemistry',
@@ -173,5 +297,23 @@ export const NATURAL = [
     name: 'Tissue',
     note: 'Stickiness alone sorts the layers',
     build: tissue,
+  },
+  {
+    key: 'frustration',
+    name: 'Frustration',
+    note: 'Spins that cannot all agree, and never stop trying',
+    build: frustration,
+  },
+  {
+    key: 'lockkey',
+    name: 'Lock & key',
+    note: 'Receptors meet ligands: few pairs bind, and hard',
+    build: lockAndKey,
+  },
+  {
+    key: 'morphogenesis',
+    name: 'Morphogen',
+    note: 'Activator and inhibitor: Turing spots',
+    build: morphogenesis,
   },
 ];
