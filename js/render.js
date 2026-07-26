@@ -3,6 +3,10 @@
 
 import { TYPES, MAX_TYPES, WORLD, MAX_PARTICLES } from './state.js';
 
+// Particles draw at half alpha, so overlapping ones read as denser rather than
+// each one simply hiding what is behind it.
+const PARTICLE_ALPHA = 0.5;
+
 const VERT = `#version 300 es
 in vec2 aPos;
 in float aType;
@@ -27,7 +31,7 @@ void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
   if (r2 > 1.0) discard;
-  float a = smoothstep(1.0, 0.25, r2);
+  float a = smoothstep(1.0, 0.25, r2) * ${PARTICLE_ALPHA.toFixed(3)};
   fragColor = vec4(vColor * a, a); // premultiplied
 }`;
 
@@ -201,11 +205,13 @@ export class Renderer {
     ctx.fillStyle = `rgba(0,0,0,${fade})`;
     ctx.fillRect(0, 0, s, s);
     ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = PARTICLE_ALPHA;
     const scale = s / WORLD;
     for (let i = 0, k = 0; i < n; i++, k += 4) {
       const px = size * Math.sqrt(data[k + 3]);
       const h = px * 0.5;
       ctx.drawImage(this.sprites[data[k + 2]], data[k] * scale - h, data[k + 1] * scale - h, px, px);
     }
+    ctx.globalAlpha = 1;
   }
 }

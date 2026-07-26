@@ -144,6 +144,31 @@ pattern is what the loop settles into, at a spacing set by the two ranges.
 Colours are paired into activator/inhibitor systems with their own wavelengths,
 competing for the same ground.
 
+Measured against the plain shuffle, 8 shuffles each at 10 colours, 5500 steps:
+
+| | clustering | segregation | worst | churn |
+|---|---|---|---|---|
+| plain shuffle | 10.35 | 0.47 | **0.18** | 0.97 |
+| Chemistry | 3.45 | 0.41 | 0.33 | 0.13 |
+| Food web | 1.55 | **0.85** | **0.83** | 0.37 |
+| Tissue | 3.59 | 0.52 | 0.42 | 0.41 |
+| Frustration | 3.84 | 0.61 | 0.56 | **0.60** |
+| Lock & key | 1.61 | 0.81 | 0.77 | 0.21 |
+| Morphogen | 1.45 | 0.81 | 0.79 | 0.31 |
+
+The column that matters is *worst* — the least segregated of the eight
+shuffles. The plain shuffle bottoms out at 0.18, meaning some of its shuffles
+are colourless mush; every rule here floors at 0.33 and four of them above
+0.56. That is the point: the rules are not better on average so much as
+reliable, because a rule cannot produce an incoherent table.
+
+Clustering is a trap as a quality score, incidentally. The plain shuffle wins
+it outright at 10.35, but that is collapse — a uniform draw puts attraction
+above repulsion on half the diagonal, so colours fall into dots, and at five
+colours one shuffle in ten ended with the entire world in a single lump. The
+rules cannot do that. Low clustering with high segregation, as Morphogen and
+Lock & key show, is an evenly spaced arrangement rather than a poor one.
+
 Every rule builds repulsion as attraction *plus a gap*, so `R > A` holds by
 construction and no pair can collapse to a point; the gap is where each model
 puts its own idea of how close is too close. And every rule carries a
