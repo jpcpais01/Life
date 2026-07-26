@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../js/sim.js';
-import { NT, WORLD, randomizeForces } from '../js/state.js';
+import { MAX_TYPES, DEFAULT_TYPES, WORLD, randomizeForces } from '../js/state.js';
 
 const SOFT = 16;
 const DMIN = 1;
@@ -34,7 +34,7 @@ function bruteForce(sim) {
       const den = 1 / ((d2 + SOFT) * (d < DMIN ? DMIN : d));
       const ta = 1 - d / cut;
       const tr = d < core ? 1 - d / core : 0;
-      const idx = sim.type[i] * NT + sim.type[j];
+      const idx = sim.type[i] * MAX_TYPES + sim.type[j];
       const m = sim.mass[sim.type[j]];
       const s = (k * sim.attract[idx] * ta - k * sim.repel[idx] * tr) * m * den;
       ax[i] += dx * s;
@@ -55,9 +55,10 @@ function gridAccelerations(sim) {
   return { ref, vel: sim.vel };
 }
 
-function makeSim(count, tweak = {}) {
+function makeSim(count, tweak = {}, types = DEFAULT_TYPES) {
   const sim = new Simulation();
   sim.count = count;
+  sim.setTypes(types);
   sim.reset();
   randomizeForces(sim.attract, sim.repel, sim.mass);
   Object.assign(sim.params, tweak);
@@ -95,6 +96,55 @@ test('grid forces match when the repulsion core exceeds the cutoff', () => {
   assertMatches(makeSim(800, { cutR: 60, coreR: 120 }));
 });
 
+test('grid forces match brute force at every colour count', () => {
+  // The matrix is indexed with a fixed MAX_TYPES stride while only the active
+  // block has particles — an off-by-one there would read the wrong pair's
+  // coefficients and stay invisible on screen.
+  for (const types of [1, 2, 3, 7, MAX_TYPES]) {
+    assertMatches(makeSim(900, {}, types));
+  }
+});
+
+test('changing colour count keeps every particle and uses only live ids', () => {
+  const sim = makeSim(2000);
+  for (const types of [1, 10, 4, 7, 2]) {
+    sim.setTypes(types);
+    for (let i = 0; i < 15; i++) sim.step();
+    const seen = new Set();
+    for (let i = 0; i < sim.count; i++) seen.add(sim.type[i]);
+    assert.equal(seen.size, types, `expected exactly ${types} colours in use`);
+    for (const id of seen) {
+      assert.ok(id >= 0 && id < types, `particle carries out-of-range colour ${id}`);
+    }
+  }
+});
+
+test('inactive colours cannot influence the world', () => {
+  // Two runs from identical state, differing only in the matrix entries for
+  // colours that have no particles. They must stay in lockstep.
+  const a = makeSim(800, {}, 3);
+  const b = makeSim(800, {}, 3);
+  b.pos.set(a.pos);
+  b.vel.set(a.vel);
+  b.type.set(a.type);
+  b.attract.set(a.attract);
+  b.repel.set(a.repel);
+  b.mass.set(a.mass);
+  for (let t = 3; t < MAX_TYPES; t++) {
+    for (let u = 0; u < MAX_TYPES; u++) {
+      b.attract[t * MAX_TYPES + u] = Math.random();
+      b.repel[t * MAX_TYPES + u] = Math.random();
+      b.attract[u * MAX_TYPES + t] = Math.random();
+      b.repel[u * MAX_TYPES + t] = Math.random();
+    }
+    b.mass[t] = 0.1 + Math.random() * 3;
+  }
+  for (let i = 0; i < 40; i++) { a.step(); b.step(); }
+  for (let i = 0; i < a.count * 2; i++) {
+    assert.equal(b.pos[i], a.pos[i], 'an unused colour changed the simulation');
+  }
+});
+
 test('forces act across the wrapping seam', () => {
   const sim = makeSim(2);
   sim.attract.fill(0);
@@ -126,10 +176,10 @@ test('particles stay inside the world and never go non-finite', () => {
 
 test('every particle is kept exactly once by the spatial sort', () => {
   const sim = makeSim(2000);
-  const before = new Int32Array(NT);
+  const before = new Int32Array(MAX_TYPES);
   for (let i = 0; i < sim.count; i++) before[sim.type[i]]++;
   for (let i = 0; i < 30; i++) sim.step();
-  const after = new Int32Array(NT);
+  const after = new Int32Array(MAX_TYPES);
   for (let i = 0; i < sim.count; i++) after[sim.type[i]]++;
   assert.deepEqual(Array.from(after), Array.from(before));
 });

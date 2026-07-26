@@ -1,7 +1,7 @@
 // Control panel construction. Everything writes straight into the live
 // simulation/render state — no re-render, no framework, no allocation churn.
 
-import { TYPES, NT, MAX_PARTICLES } from './state.js';
+import { TYPES, MAX_TYPES, MAX_PARTICLES } from './state.js';
 import { PRESETS } from './presets.js';
 import { Sparkline } from './spark.js';
 
@@ -39,36 +39,143 @@ export function buildUI(state, view, onChange, onPreset) {
   const refresh = [];
 
   // ---------------- presets ----------------
+  // Option values: 'custom', a built-in index, or 'saved:<id>'.
   const select = document.getElementById('preset');
   const note = document.getElementById('presetNote');
-  const custom = document.createElement('option');
-  custom.value = 'custom';
-  custom.textContent = 'Custom';
-  select.append(custom);
-  PRESETS.forEach((preset, i) => {
-    const o = document.createElement('option');
-    o.value = String(i);
-    o.textContent = preset.name;
-    select.append(o);
-  });
-  select.addEventListener('change', () => {
-    const index = +select.value;
-    const preset = PRESETS[index];
-    if (!preset) return;
-    note.textContent = preset.note;
-    onPreset(preset, index);
-  });
+  const btnSave = document.getElementById('btnSavePreset');
+  const btnDelete = document.getElementById('btnDeletePreset');
+  const saveForm = document.getElementById('saveForm');
+  const nameInput = document.getElementById('presetName');
+
+  let saved = loadUserPresets();
+
+  const rebuildOptions = () => {
+    const keep = select.value;
+    select.replaceChildren();
+    const custom = document.createElement('option');
+    custom.value = 'custom';
+    custom.textContent = 'Custom';
+    select.append(custom);
+
+    const builtIn = document.createElement('optgroup');
+    builtIn.label = 'Built in';
+    PRESETS.forEach((preset, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = preset.name;
+      builtIn.append(o);
+    });
+    select.append(builtIn);
+
+    if (saved.length) {
+      const group = document.createElement('optgroup');
+      group.label = 'Saved';
+      for (const preset of saved) {
+        const o = document.createElement('option');
+        o.value = `saved:${preset.id}`;
+        o.textContent = preset.name;
+        group.append(o);
+      }
+      select.append(group);
+    }
+    // Only restore the previous selection if that option still exists.
+    select.value = keep;
+    if (!select.value) select.value = 'custom';
+  };
+
+  const presetFor = (key) => {
+    if (key == null || key === 'custom') return null;
+    if (typeof key === 'string' && key.startsWith('saved:')) {
+      const id = key.slice(6);
+      const found = saved.find((s) => String(s.id) === id);
+      return found ? inflate(found) : null;
+    }
+    return PRESETS[+key] || null;
+  };
+
+  const showPreset = (key) => {
+    const preset = presetFor(key);
+    if (!preset) {
+      select.value = 'custom';
+      note.textContent = '';
+    } else {
+      select.value = String(key);
+      note.textContent = preset.note || '';
+    }
+    btnDelete.hidden = !(typeof select.value === 'string' && select.value.startsWith('saved:'));
+  };
 
   // Any hand edit means the forces no longer match the named preset.
   const markCustom = () => {
     select.value = 'custom';
     note.textContent = '';
+    btnDelete.hidden = true;
   };
-  const showPreset = (index) => {
-    if (index == null) return markCustom();
-    select.value = String(index);
-    note.textContent = PRESETS[index].note;
+
+  rebuildOptions();
+
+  select.addEventListener('change', () => {
+    const key = select.value;
+    const preset = presetFor(key);
+    if (!preset) return markCustom();
+    note.textContent = preset.note || '';
+    btnDelete.hidden = !key.startsWith('saved:');
+    onPreset(preset, key);
+  });
+
+  const closeForm = () => {
+    saveForm.hidden = true;
+    nameInput.value = '';
   };
+  btnSave.addEventListener('click', () => {
+    saveForm.hidden = !saveForm.hidden;
+    if (!saveForm.hidden) {
+      nameInput.value = `Configuration ${saved.length + 1}`;
+      nameInput.focus();
+      nameInput.select();
+    }
+  });
+  document.getElementById('btnSaveCancel').addEventListener('click', closeForm);
+
+  const commitSave = () => {
+    const name = nameInput.value.trim().slice(0, 40) || `Configuration ${saved.length + 1}`;
+    const entry = {
+      id: Date.now().toString(36),
+      name,
+      types: state.types,
+      // Snapshot the whole matrix, not just the active block, so reloading it
+      // at a higher colour count still finds live values.
+      attract: Array.from(state.attract),
+      repel: Array.from(state.repel),
+      mass: Array.from(state.mass),
+    };
+    saved.push(entry);
+    storeUserPresets(saved);
+    rebuildOptions();
+    select.value = `saved:${entry.id}`;
+    note.textContent = `${entry.types} colours, saved just now`;
+    btnDelete.hidden = false;
+    state.preset = `saved:${entry.id}`;
+    closeForm();
+    onChange();
+  };
+  document.getElementById('btnSaveConfirm').addEventListener('click', commitSave);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitSave(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeForm(); }
+  });
+
+  btnDelete.addEventListener('click', () => {
+    const key = select.value;
+    if (!key.startsWith('saved:')) return;
+    const id = key.slice(6);
+    saved = saved.filter((s) => String(s.id) !== id);
+    storeUserPresets(saved);
+    rebuildOptions();
+    markCustom();
+    state.preset = null;
+    onChange();
+  });
 
   // ---------------- signal graphs ----------------
   const signals = document.getElementById('signals');
@@ -167,7 +274,24 @@ export function buildUI(state, view, onChange, onPreset) {
   refresh.push(syncRatio);
 
   // ---------------- interaction matrix ----------------
+  const colourSlider = slider({
+    label: 'Colours', min: 1, max: MAX_TYPES, step: 1,
+    get: () => state.types,
+    set: (v) => {
+      state.types = v | 0;
+      syncTypes();
+      // The colour count is part of the configuration, so changing it means
+      // the forces no longer match the named preset.
+      markCustom();
+      state.preset = null;
+      onChange();
+    },
+  });
+  document.getElementById('colourRow').append(colourSlider);
+  refresh.push(colourSlider.refresh);
+
   const matrix = document.getElementById('matrix');
+  const colHeads = [], rowHeads = [], cells = [], massRows = [];
   matrix.append(document.createElement('div')); // corner
   for (const t of TYPES) {
     const h = document.createElement('div');
@@ -177,20 +301,24 @@ export function buildUI(state, view, onChange, onPreset) {
     dot.className = 'dot';
     dot.style.background = t.hex;
     h.append(dot);
+    colHeads.push(h);
     matrix.append(h);
   }
 
-  for (let a = 0; a < NT; a++) {
+  for (let a = 0; a < MAX_TYPES; a++) {
     const rh = document.createElement('div');
     rh.title = TYPES[a].name;
     const dot = document.createElement('div');
     dot.className = 'dot';
     dot.style.background = TYPES[a].hex;
     rh.append(dot);
+    rowHeads.push(rh);
     matrix.append(rh);
+    const cellRow = [];
+    cells.push(cellRow);
 
-    for (let b = 0; b < NT; b++) {
-      const idx = a * NT + b;
+    for (let b = 0; b < MAX_TYPES; b++) {
+      const idx = a * MAX_TYPES + b;
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.title = `${TYPES[a].name} ← ${TYPES[b].name}`;
@@ -222,13 +350,28 @@ export function buildUI(state, view, onChange, onPreset) {
       refresh.push(sync);
 
       cell.append(ia, ir, nums);
+      cellRow.push(cell);
       matrix.append(cell);
+    }
+  }
+
+  // Colours beyond the active count keep their matrix entries but have no
+  // particles, so their rows and columns are hidden rather than destroyed —
+  // turning the count back up restores exactly what was there.
+  function syncTypes() {
+    const n = state.types;
+    matrix.style.setProperty('--cols', n);
+    for (let b = 0; b < MAX_TYPES; b++) colHeads[b].hidden = b >= n;
+    for (let a = 0; a < MAX_TYPES; a++) {
+      rowHeads[a].hidden = a >= n;
+      for (let b = 0; b < MAX_TYPES; b++) cells[a][b].hidden = a >= n || b >= n;
+      if (massRows[a]) massRows[a].hidden = a >= n;
     }
   }
 
   // ---------------- masses ----------------
   const masses = document.getElementById('masses');
-  for (let t = 0; t < NT; t++) {
+  for (let t = 0; t < MAX_TYPES; t++) {
     const row = document.createElement('div');
     row.className = 'massrow';
     row.title = TYPES[t].name;
@@ -247,11 +390,14 @@ export function buildUI(state, view, onChange, onPreset) {
     sync();
     refresh.push(sync);
     row.append(dot, input, val);
+    massRows.push(row);
     masses.append(row);
   }
 
+  syncTypes();
+
   return {
-    refreshAll: () => refresh.forEach((f) => f()),
+    refreshAll: () => { refresh.forEach((f) => f()); syncTypes(); },
     showPreset,
     markCustom,
     pushSignals,
@@ -263,6 +409,7 @@ export function saveSettings(state, view) {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       count: state.count,
+      types: state.types,
       params: state.params,
       attract: Array.from(state.attract),
       repel: Array.from(state.repel),
@@ -280,17 +427,68 @@ export function loadSettings(state, view) {
   try {
     const s = JSON.parse(raw);
     if (Number.isFinite(s.count)) state.count = Math.min(MAX_PARTICLES, Math.max(0, s.count | 0));
+    if (Number.isFinite(s.types)) state.types = Math.min(MAX_TYPES, Math.max(1, s.types | 0));
     if (s.params) Object.assign(state.params, s.params);
-    if (Array.isArray(s.attract) && s.attract.length === NT * NT) state.attract.set(s.attract);
-    if (Array.isArray(s.repel) && s.repel.length === NT * NT) state.repel.set(s.repel);
-    if (Array.isArray(s.mass) && s.mass.length === NT) state.mass.set(s.mass);
+    // Settings saved before the palette grew hold a smaller matrix; copy what
+    // fits and leave the freshly seeded remainder alone.
+    copyBlock(s.attract, state.attract);
+    copyBlock(s.repel, state.repel);
+    if (Array.isArray(s.mass)) s.mass.slice(0, MAX_TYPES).forEach((v, i) => { state.mass[i] = v; });
     if (s.view) {
       if (Number.isFinite(s.view.radius)) view.radius = s.view.radius;
       if (Number.isFinite(s.view.fade)) view.fade = s.view.fade;
     }
-    state.preset = Number.isInteger(s.preset) ? s.preset : null;
+    state.preset = (Number.isInteger(s.preset) || typeof s.preset === 'string') ? s.preset : null;
     return true;
   } catch {
     return false;
   }
+}
+
+
+// A square matrix saved at one size, copied into the top-left of another.
+function copyBlock(src, dst) {
+  if (!Array.isArray(src)) return;
+  const from = Math.round(Math.sqrt(src.length));
+  if (from * from !== src.length || from > MAX_TYPES) return;
+  for (let a = 0; a < from; a++) {
+    for (let b = 0; b < from; b++) dst[a * MAX_TYPES + b] = src[a * from + b];
+  }
+}
+
+const USER_KEY = 'life.presets.v1';
+
+function loadUserPresets() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(validUserPreset) : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeUserPresets(list) {
+  try {
+    localStorage.setItem(USER_KEY, JSON.stringify(list));
+  } catch { /* quota or private mode — the in-memory list still works */ }
+}
+
+function validUserPreset(p) {
+  return p && typeof p.name === 'string'
+    && Array.isArray(p.attract) && p.attract.length === MAX_TYPES * MAX_TYPES
+    && Array.isArray(p.repel) && p.repel.length === MAX_TYPES * MAX_TYPES
+    && Array.isArray(p.mass) && p.mass.length === MAX_TYPES;
+}
+
+// Saved presets are stored as plain arrays; applyPreset wants typed ones.
+function inflate(p) {
+  return {
+    name: p.name,
+    note: `Saved configuration · ${p.types} colours`,
+    types: p.types || MAX_TYPES,
+    attract: Float32Array.from(p.attract),
+    repel: Float32Array.from(p.repel),
+    mass: Float32Array.from(p.mass),
+  };
 }

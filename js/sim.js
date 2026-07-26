@@ -12,7 +12,7 @@
 // (green may chase yellow while yellow flees green) — which is what makes the
 // behaviour interesting.
 
-import { NT, MAX_PARTICLES, WORLD, DEFAULT_PARAMS, randomizeForces } from './state.js';
+import { MAX_TYPES, DEFAULT_TYPES, MAX_PARTICLES, WORLD, DEFAULT_PARAMS, randomizeForces } from './state.js';
 
 // Softening length² — keeps a = m/d² finite as d -> 0.
 const SOFT = 16;
@@ -46,16 +46,17 @@ export class Simulation {
     this.cellStart = new Int32Array(1);
     this.cursor = new Int32Array(1);
 
-    this.count = 3000;
+    this.count = 10000;
+    this.types = DEFAULT_TYPES; // active colours; the matrix is always 10x10
 
     // Row = the particle that feels the force, column = the one exerting it.
-    this.attract = new Float32Array(NT * NT);
-    this.repel = new Float32Array(NT * NT);
-    this.mass = new Float32Array(NT).fill(1);
+    this.attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+    this.repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+    this.mass = new Float32Array(MAX_TYPES).fill(1);
 
     // Per-step coefficients: matrix * mass * force * dt, folded once.
-    this.coefA = new Float32Array(NT * NT);
-    this.coefR = new Float32Array(NT * NT);
+    this.coefA = new Float32Array(MAX_TYPES * MAX_TYPES);
+    this.coefR = new Float32Array(MAX_TYPES * MAX_TYPES);
 
     this.params = { ...DEFAULT_PARAMS };
     this.pairs = 0;
@@ -73,8 +74,18 @@ export class Simulation {
       pos[i * 2 + 1] = Math.random() * WORLD;
       vel[i * 2] = 0;
       vel[i * 2 + 1] = 0;
-      type[i] = i % NT;
+      type[i] = i % this.types;
     }
+  }
+
+  // Recolour in place. Reassigning rather than respawning lets the world morph
+  // into the new palette instead of restarting, and round-robin keeps the
+  // colours evenly represented however the array happens to be permuted.
+  setTypes(n) {
+    if (n === this.types) return;
+    this.types = n;
+    const type = this.type;
+    for (let i = 0; i < MAX_PARTICLES; i++) type[i] = i % n;
   }
 
   _ensureGrid(cols) {
@@ -136,9 +147,9 @@ export class Simulation {
     const coefA = this.coefA, coefR = this.coefR;
 
     const k = p.force * p.dt;
-    for (let a = 0; a < NT; a++) {
-      for (let b = 0; b < NT; b++) {
-        const i = a * NT + b;
+    for (let a = 0; a < MAX_TYPES; a++) {
+      for (let b = 0; b < MAX_TYPES; b++) {
+        const i = a * MAX_TYPES + b;
         coefA[i] = k * this.attract[i] * this.mass[b];
         coefR[i] = k * this.repel[i] * this.mass[b];
       }
@@ -160,7 +171,7 @@ export class Simulation {
       for (let i = s; i < e; i++) {
         const i2 = i * 2;
         const xi = pos[i2], yi = pos[i2 + 1];
-        const ti = type[i], row = ti * NT;
+        const ti = type[i], row = ti * MAX_TYPES;
         let axi = 0, ayi = 0;
         for (let j = i + 1; j < e; j++) {
           const j2 = j * 2;
@@ -176,7 +187,7 @@ export class Simulation {
           const ta = 1 - d * invCut;
           const tr = d < coreR ? 1 - d * invCore : 0;
           const tj = type[j];
-          const ai = row + tj, aj = tj * NT + ti;
+          const ai = row + tj, aj = tj * MAX_TYPES + ti;
           const si = (coefA[ai] * ta - coefR[ai] * tr) * den;
           const sj = (coefA[aj] * ta - coefR[aj] * tr) * den;
           axi += dx * si; ayi += dy * si;
@@ -200,7 +211,7 @@ export class Simulation {
           // Shift this cell's particle by the wrap offset instead of the
           // neighbour's, so the inner loop needs no wrap test at all.
           const xi = pos[i2] - wx, yi = pos[i2 + 1] - wy;
-          const ti = type[i], row = ti * NT;
+          const ti = type[i], row = ti * MAX_TYPES;
           let axi = 0, ayi = 0;
           for (let j = ns; j < ne; j++) {
             const j2 = j * 2;
@@ -214,7 +225,7 @@ export class Simulation {
             const ta = 1 - d * invCut;
             const tr = d < coreR ? 1 - d * invCore : 0;
             const tj = type[j];
-            const ai = row + tj, aj = tj * NT + ti;
+            const ai = row + tj, aj = tj * MAX_TYPES + ti;
             const si = (coefA[ai] * ta - coefR[ai] * tr) * den;
             const sj = (coefA[aj] * ta - coefR[aj] * tr) * den;
             axi += dx * si; ayi += dy * si;

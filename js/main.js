@@ -1,12 +1,15 @@
 import { createState, randomizeForces, DEFAULT_PARAMS, DEFAULT_COUNT, DEFAULT_VIEW } from './state.js';
-import { applyPreset } from './presets.js';
+import { applyPreset, PRESETS } from './presets.js';
 import { createHost } from './host.js';
 import { Renderer } from './render.js';
 import { buildUI, saveSettings, loadSettings } from './ui.js';
 
 const state = createState();
 const view = { ...DEFAULT_VIEW };
-loadSettings(state, view);
+if (!loadSettings(state, view)) {
+  applyPreset(state, PRESETS[0]);
+  state.preset = 0;
+}
 
 const canvas = document.getElementById('view');
 const stage = document.getElementById('stage');

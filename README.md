@@ -55,6 +55,8 @@ search:
 | **Rotors** | bound triples whose chase becomes rotation |
 | **Ecosystem** | every mechanism at once, nothing settles |
 
+All ten are five-colour configurations, but the palette runs to ten.
+
 Two consequences of the force law shape all of them. Since a pair settles where
 `A(1 − d/cutR) = R(1 − d/coreR)`, **repulsion must exceed attraction** for any
 pair that meets — otherwise they fall into a single point — and the size of
@@ -66,7 +68,11 @@ The rest is asymmetry. `A[i][j] ≠ A[j][i]` means i chases j while j flees, and
 that is the only thing keeping any of these in motion — Foam sets solid within
 seconds if its cross-repulsion is made symmetric.
 
-Editing any force or mass switches the picker to *Custom*; nothing is lost.
+Editing any force, mass or the colour count switches the picker to *Custom*;
+nothing is lost. **Save configuration** names the current matrix, masses and
+colour count and adds it to the picker under *Saved*, stored in local storage
+alongside the built-ins; selecting one restores all three, and *Delete* removes
+it.
 
 ## Controls
 
@@ -91,9 +97,23 @@ to the heading restores all nine to their defaults; it leaves the interaction
 matrix and masses untouched, so you can put the world back without losing the
 forces you were exploring.
 
-**Interactions** — the 5 × 5 matrix. Each cell holds two sliders: green for
-attraction, red for repulsion. The **row** is the particle that feels the force,
-the **column** is the particle exerting it.
+**Interactions** — how many colours are in play (1 to 10) and the matrix that
+couples them. Each cell holds two sliders: green for attraction, red for
+repulsion. The **row** is the particle that feels the force, the **column** is
+the particle exerting it. At high colour counts the matrix scrolls sideways
+rather than shrinking the sliders to nothing.
+
+The matrix is always stored at the full 10 × 10 and indexed with a fixed
+stride, so colours above the active count keep their values rather than being
+destroyed — turning the count back up restores exactly what was there, and
+turning it up past a preset's own size reveals colours that already interact
+instead of inert ones. A colour with no particles cannot influence the world,
+which is checked by a test that runs two identical worlds differing only in
+the entries for unused colours and asserts they stay in lockstep.
+
+The colour count belongs to the configuration rather than the world: presets
+and saved configurations carry it, and **Reset** in the World section leaves it
+alone.
 
 **Mass** — per-type mass, which scales how hard that type pushes and pulls
 everything else.

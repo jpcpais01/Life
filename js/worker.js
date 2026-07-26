@@ -45,6 +45,7 @@ self.onmessage = (e) => {
       break;
     case 'state':
       sim.count = m.count;
+      sim.setTypes(m.types);
       Object.assign(sim.params, m.params);
       sim.attract.set(m.attract);
       sim.repel.set(m.repel);

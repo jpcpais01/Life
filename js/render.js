@@ -1,13 +1,13 @@
 // Renderer — WebGL2 point sprites, one buffer upload per frame.
 // Falls back to a sprite-blitting canvas2d path if WebGL is unavailable.
 
-import { TYPES, NT, WORLD, MAX_PARTICLES } from './state.js';
+import { TYPES, MAX_TYPES, WORLD, MAX_PARTICLES } from './state.js';
 
 const VERT = `#version 300 es
 in vec2 aPos;
 in float aType;
 uniform float uSize;
-uniform vec3 uColors[${NT}];
+uniform vec3 uColors[${MAX_TYPES}];
 out vec3 vColor;
 void main() {
   vec2 p = aPos / ${WORLD.toFixed(1)} * 2.0 - 1.0;
@@ -87,7 +87,7 @@ export class Renderer {
 
     this.prog = program(gl, VERT, FRAG);
     this.uSize = gl.getUniformLocation(this.prog, 'uSize');
-    const cols = new Float32Array(NT * 3);
+    const cols = new Float32Array(MAX_TYPES * 3);
     TYPES.forEach((t, i) => cols.set(t.color, i * 3));
     gl.useProgram(this.prog);
     gl.uniform3fv(gl.getUniformLocation(this.prog, 'uColors[0]'), cols);

@@ -16,7 +16,17 @@
 // Rows and columns are ordered green, yellow, red, blue, white. The row is the
 // particle feeling the force, the column the one exerting it.
 
-const flat = (rows) => Float32Array.from(rows.flat());
+// Lay a compact NxN block into the fixed MAX_TYPES stride. Entries outside the
+// block keep whatever the randomizer seeded, so raising the type count above a
+// preset's own reveals colours that already interact.
+const flat = (rows) => {
+  const out = new Float32Array(MAX_TYPES * MAX_TYPES);
+  rows.forEach((row, i) => row.forEach((v, j) => { out[i * MAX_TYPES + j] = v; }));
+  out.size = rows.length;
+  return out;
+};
+
+import { MAX_TYPES } from './state.js';
 
 export const PRESETS = [
   {
@@ -254,7 +264,16 @@ export const PRESETS = [
 ];
 
 export function applyPreset(state, preset) {
-  state.attract.set(preset.attract);
-  state.repel.set(preset.repel);
-  state.mass.set(preset.mass);
+  const size = preset.types || preset.attract.size || MAX_TYPES;
+  // Only overwrite the preset's own block; the rest of the matrix is left as
+  // it was so raising the type count afterwards still finds live values.
+  for (let a = 0; a < size; a++) {
+    for (let b = 0; b < size; b++) {
+      const i = a * MAX_TYPES + b;
+      state.attract[i] = preset.attract[i];
+      state.repel[i] = preset.repel[i];
+    }
+    state.mass[a] = preset.mass[a];
+  }
+  state.types = size;
 }

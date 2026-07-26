@@ -6,7 +6,7 @@
 // costs one pass over the particles plus a few thousand multiplies, against
 // the ~100k pair evaluations of a single step, so it is effectively free.
 
-import { NT, WORLD } from './state.js';
+import { MAX_TYPES, WORLD } from './state.js';
 
 const G = 24;               // density grid resolution
 const CELLS = G * G;
@@ -15,16 +15,17 @@ export class StatsProbe {
   constructor() {
     this.total = new Float64Array(CELLS);
     this.byType = [];
-    for (let t = 0; t < NT; t++) this.byType.push(new Float64Array(CELLS));
+    for (let t = 0; t < MAX_TYPES; t++) this.byType.push(new Float64Array(CELLS));
   }
 
   sample(sim) {
     const n = sim.count;
     if (n === 0) return null;
 
+    const active = sim.types;
     const total = this.total, byType = this.byType;
     total.fill(0);
-    for (let t = 0; t < NT; t++) byType[t].fill(0);
+    for (let t = 0; t < active; t++) byType[t].fill(0);
 
     const inv = G / WORLD;
     const pos = sim.pos, type = sim.type, vel = sim.vel;
@@ -56,8 +57,8 @@ export class StatsProbe {
     // identically give cosine 1 and contribute nothing; types occupying
     // separate territory give cosine 0.
     let similarity = 0, pairs = 0;
-    for (let a = 0; a < NT; a++) {
-      for (let b = a + 1; b < NT; b++) {
+    for (let a = 0; a < active; a++) {
+      for (let b = a + 1; b < active; b++) {
         similarity += cosine(byType[a], byType[b]);
         pairs++;
       }

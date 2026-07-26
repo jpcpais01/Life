@@ -28,6 +28,18 @@
       <select id="preset"></select>
     </div>
     <p class="hint" id="presetNote"></p>
+    <div class="presetactions">
+      <button id="btnSavePreset">Save configuration</button>
+      <button id="btnDeletePreset" hidden>Delete</button>
+    </div>
+    <div id="saveForm" class="saveform" hidden>
+      <input id="presetName" type="text" maxlength="40" placeholder="Name this configuration"
+             autocomplete="off" spellcheck="false">
+      <div class="saveform-actions">
+        <button id="btnSaveConfirm" class="primary">Save</button>
+        <button id="btnSaveCancel">Cancel</button>
+      </div>
+    </div>
 
     <div class="buttons">
       <button id="btnPause" class="primary">Pause</button>
@@ -49,8 +61,9 @@
 
     <section>
       <h2>Interactions</h2>
+      <div id="colourRow"></div>
       <p class="hint">Row feels the force from column. <span class="att">green = attraction</span>, <span class="rep">red = repulsion</span>, both scaled 0 → 1.</p>
-      <div id="matrix"></div>
+      <div class="matrixwrap"><div id="matrix"></div></div>
     </section>
 
     <section>

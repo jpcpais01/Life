@@ -47,6 +47,7 @@ class WorkerHost {
     this.worker.postMessage({
       t: 'state',
       count: s.count,
+      types: s.types,
       params: { ...s.params },
       attract: s.attract.slice(),
       repel: s.repel.slice(),
@@ -103,6 +104,7 @@ class LocalHost {
   sync() {
     const s = this.state, sim = this.sim;
     sim.count = s.count;
+    sim.setTypes(s.types);
     Object.assign(sim.params, s.params);
     sim.attract.set(s.attract);
     sim.repel.set(s.repel);
