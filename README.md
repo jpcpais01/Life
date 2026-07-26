@@ -116,6 +116,22 @@ matrices, segregation falls from 0.68 at 2x to 0.18 at 8x. The 2-3x window is
 also, not coincidentally, where molecular dynamics truncates a Lennard-Jones
 potential.
 
+**Merge same colour** is off by default and changes the model rather than the
+view: two particles of the same colour closer than the merge distance become
+one, of their combined mass, conserving momentum so a merge never injects
+energy. **Max merged mass** caps it — a particle at or above that mass stops
+merging, and a cap of 1 disables merging entirely since every particle starts
+at 1. The test is on the particles going in, so a pair each just under the cap
+can land above it and then stop.
+
+It saves less than it looks like it should. The presets give every colour more
+self-repulsion than self-attraction by design, which actively holds same-colour
+particles apart: measured over 600 steps, *Cells* keeps 2962 of 3000 particles
+even at a merge distance of 4, and the closest two same-colour particles ever
+come is about 0.7 units. Configurations whose colours collapse — most random
+shuffles — are the opposite, losing more than half their particles. The extra
+per-particle mass multiply in the force loop costs about 4%.
+
 **Reset** next
 to the heading restores all nine to their defaults; it leaves the interaction
 matrix and masses untouched, so you can put the world back without losing the

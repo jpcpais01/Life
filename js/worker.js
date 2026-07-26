@@ -9,6 +9,7 @@ import { StatsProbe } from './stats.js';
 const sim = new Simulation();
 const probe = new StatsProbe();
 let paused = false;
+let targetCount = -1;
 const pool = []; // ArrayBuffers currently owned by this worker
 
 // Sample on a wall clock rather than every nth frame, so the graphs advance at
@@ -32,7 +33,7 @@ function pump() {
       lastSample = now;
       signals = probe.sample(sim);
     }
-    postMessage({ t: 'frame', buf, n, pairs: sim.pairs, ms, signals }, [buf]);
+    postMessage({ t: 'frame', buf, n, pairs: sim.pairs, ms, signals, merged: sim.mergedTotal }, [buf]);
   }
 }
 
@@ -44,7 +45,12 @@ self.onmessage = (e) => {
       pump();
       break;
     case 'state':
-      sim.count = m.count;
+      // Merging lowers the live count, so the slider is a target rather than
+      // a running total: only push it through when the user actually moves it.
+      if (m.count !== targetCount) {
+        targetCount = m.count;
+        sim.setCount(m.count);
+      }
       sim.setTypes(m.types);
       Object.assign(sim.params, m.params);
       sim.attract.set(m.attract);
@@ -52,6 +58,7 @@ self.onmessage = (e) => {
       sim.mass.set(m.mass);
       break;
     case 'reset':
+      sim.setCount(targetCount < 0 ? sim.count : targetCount);
       sim.reset();
       break;
     case 'pause':

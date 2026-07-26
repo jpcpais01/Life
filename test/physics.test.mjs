@@ -251,6 +251,78 @@ test('a saved configuration restores every colour, not just the active ones', ()
   }
 });
 
+test('merging conserves mass and respects its cap', () => {
+  // Merging must move mass around, never create or destroy it: the sum of
+  // per-particle masses is the particle count the world started with.
+  for (const cap of [1, 2, 3, 5, 10]) {
+    const sim = makeSim(2000, { merge: 1, mergeDist: 3, mergeCap: cap });
+    for (let i = 0; i < 400; i++) sim.step();
+
+    let total = 0, heaviest = 0;
+    for (let i = 0; i < sim.count; i++) {
+      total += sim.pmass[i];
+      heaviest = Math.max(heaviest, sim.pmass[i]);
+      assert.ok(sim.pmass[i] >= 1, 'a particle lost mass');
+    }
+    assert.ok(Math.abs(total - 2000) < 1e-3, `mass not conserved at cap ${cap}: ${total}`);
+    assert.ok(sim.count <= 2000, 'merging cannot create particles');
+
+    if (cap === 1) {
+      assert.equal(sim.count, 2000, 'a cap of 1 must prevent every merge');
+      assert.equal(heaviest, 1);
+    } else {
+      // The cap tests the particles going in, so a pair each just under it can
+      // land above — but never further than one partner past the limit.
+      assert.ok(heaviest < cap * 2, `cap ${cap} overshot to ${heaviest}`);
+    }
+  }
+});
+
+test('merging is inert while switched off', () => {
+  const a = makeSim(800, { merge: 0, mergeDist: 5 });
+  const b = makeSim(800, { merge: 0, mergeDist: 5 });
+  b.pos.set(a.pos); b.vel.set(a.vel); b.type.set(a.type);
+  b.attract.set(a.attract); b.repel.set(a.repel); b.mass.set(a.mass);
+  for (let i = 0; i < 60; i++) { a.step(); b.step(); }
+  assert.equal(a.count, 800, 'nothing should merge with the toggle off');
+  for (let i = 0; i < a.count * 2; i++) assert.equal(b.pos[i], a.pos[i]);
+});
+
+test('a merged particle pulls as hard as its parts did', () => {
+  // Two particles of mass 1 sitting on top of each other should attract a
+  // distant third exactly as one particle of mass 2 does.
+  const build = (merged) => {
+    const sim = makeSim(3, { merge: 0 });
+    sim.attract.fill(0);
+    sim.repel.fill(0);
+    sim.mass.fill(1);
+    sim.attract[0] = 1;              // green feels green
+    sim.setTypes(1);
+    for (let i = 0; i < 3; i++) { sim.type[i] = 0; sim.vel[i * 2] = 0; sim.vel[i * 2 + 1] = 0; }
+    sim.pos[0] = 500; sim.pos[1] = 500;          // the observer
+    sim.pos[2] = 530; sim.pos[3] = 500;          // the mass
+    sim.pos[4] = 530; sim.pos[5] = 500;
+    sim.pmass[0] = 1;
+    if (merged) { sim.count = 2; sim.pmass[1] = 2; }
+    else { sim.count = 3; sim.pmass[1] = 1; sim.pmass[2] = 1; }
+    return sim;
+  };
+  const pull = (sim) => {
+    sim._integrate = () => {};
+    sim.step();
+    // Find the observer again — the sort permutes the array.
+    for (let i = 0; i < sim.count; i++) {
+      if (Math.abs(sim.pos[i * 2] - 500) < 1e-3) return sim.vel[i * 2];
+    }
+    throw new Error('observer not found');
+  };
+  const apart = pull(build(false));
+  const merged = pull(build(true));
+  assert.ok(apart > 0, 'the observer should be pulled toward the mass');
+  assert.ok(Math.abs(merged - apart) < 1e-6,
+    `merged pull ${merged} should match two separate particles ${apart}`);
+});
+
 test('a zeroed matrix leaves particles motionless', () => {
   const sim = makeSim(500);
   sim.attract.fill(0);

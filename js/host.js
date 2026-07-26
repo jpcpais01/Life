@@ -95,6 +95,7 @@ class LocalHost {
     this.sim = new Simulation();
     this.probe = new StatsProbe();
     this.lastSample = 0;
+    this.targetCount = -1;
     this.buffer = new Float32Array(FLOATS);
     this.paused = false;
     this.stats = { n: 0, pairs: 0, ms: 0 };
@@ -103,7 +104,10 @@ class LocalHost {
 
   sync() {
     const s = this.state, sim = this.sim;
-    sim.count = s.count;
+    if (s.count !== this.targetCount) {
+      this.targetCount = s.count;
+      sim.setCount(s.count);
+    }
     sim.setTypes(s.types);
     Object.assign(sim.params, s.params);
     sim.attract.set(s.attract);
@@ -111,7 +115,11 @@ class LocalHost {
     sim.mass.set(s.mass);
   }
 
-  reset() { this.sim.reset(); this.stale = true; }
+  reset() {
+    if (this.targetCount > 0) this.sim.setCount(this.targetCount);
+    this.sim.reset();
+    this.stale = true;
+  }
   setPaused(v) { this.paused = v; this.stale = true; }
 
   beginFrame() {

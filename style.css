@@ -216,6 +216,23 @@ button.primary { border-color: #2e5f45; color: #b6f5cd; }
 /* ---------------- sliders ---------------- */
 
 .row { margin: 9px 0; }
+.row.toggle { margin: 14px 0 6px; }
+.row.toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.row.toggle input {
+  accent-color: var(--att);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+/* Settings that only matter while merging is on. */
+.row.inert { opacity: 0.4; }
 .row .top {
   display: flex;
   justify-content: space-between;

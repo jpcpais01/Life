@@ -48,6 +48,11 @@ export const DEFAULT_PARAMS = {
   damping: 0.92,
   maxV: 26,
   steps: 1,
+  // Coalescence: same-colour particles closer than mergeDist become one, of
+  // combined mass. Off by default — it changes the model, not just the view.
+  merge: 0,
+  mergeDist: 2,
+  mergeCap: 5,   // a particle at or above this mass stops merging
 };
 
 export function randomizeForces(attract, repel, mass) {

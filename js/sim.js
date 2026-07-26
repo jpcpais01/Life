@@ -37,9 +37,26 @@ export class Simulation {
     this.pos = new Float32Array(n * 2);
     this.vel = new Float32Array(n * 2);
     this.type = new Uint8Array(n);
+    // How many original particles a particle now stands for. Multiplies the
+    // colour's mass, so a merged particle pulls as hard as its parts did.
+    this.pmass = new Float32Array(n).fill(1);
     this._pos = new Float32Array(n * 2);
     this._vel = new Float32Array(n * 2);
     this._type = new Uint8Array(n);
+    this._pmass = new Float32Array(n);
+
+    // Merge bookkeeping, per particle:
+    //   -1  free
+    //   -2  has absorbed at least one this step (still a valid target)
+    //   >=0 absorbed by that index, and gone at the end of the step
+    // So a target needs absorb < 0 and a source needs exactly -1: one particle
+    // may absorb many in a step, but never both absorbs and is absorbed, which
+    // keeps chains out of a single pass.
+    this.absorb = new Int32Array(n);
+    // Mass a particle has taken on *this step*. The cap has to count it, or a
+    // particle sitting just under the limit could absorb several at once.
+    this.growth = new Float32Array(n);
+    this.merges = 0;
 
     this.cellOf = new Int32Array(n);
     this.cols = 0;
@@ -68,14 +85,33 @@ export class Simulation {
   // Seed every slot, not just `count`, so changing the particle count never
   // allocates or leaves uninitialised particles behind.
   reset() {
-    const pos = this.pos, vel = this.vel, type = this.type;
+    const pos = this.pos, vel = this.vel, type = this.type, pmass = this.pmass;
     for (let i = 0; i < MAX_PARTICLES; i++) {
       pos[i * 2] = Math.random() * WORLD;
       pos[i * 2 + 1] = Math.random() * WORLD;
       vel[i * 2] = 0;
       vel[i * 2 + 1] = 0;
       type[i] = i % this.types;
+      pmass[i] = 1;
     }
+    this.merges = 0;
+  }
+
+  // Growing re-seeds the newly exposed slots: after merging, everything past
+  // the live count holds absorbed particles that must not come back to life.
+  setCount(n) {
+    if (n > this.count) {
+      const pos = this.pos, vel = this.vel, type = this.type, pmass = this.pmass;
+      for (let i = this.count; i < n; i++) {
+        pos[i * 2] = Math.random() * WORLD;
+        pos[i * 2 + 1] = Math.random() * WORLD;
+        vel[i * 2] = 0;
+        vel[i * 2 + 1] = 0;
+        type[i] = i % this.types;
+        pmass[i] = 1;
+      }
+    }
+    this.count = n;
   }
 
   // Recolour in place. Reassigning rather than respawning lets the world morph
@@ -124,7 +160,8 @@ export class Simulation {
 
     // Gather into the shadow buffers, then swap: the live arrays are now
     // ordered by cell, and stay roughly ordered for the next step too.
-    const gpos = this._pos, gvel = this._vel, gtype = this._type;
+    const gpos = this._pos, gvel = this._vel, gtype = this._type, gpmass = this._pmass;
+    const pmass = this.pmass;
     for (let i = 0; i < n; i++) {
       const d = cursor[cellOf[i]]++;
       gpos[d * 2] = pos[i * 2];
@@ -132,17 +169,19 @@ export class Simulation {
       gvel[d * 2] = vel[i * 2];
       gvel[d * 2 + 1] = vel[i * 2 + 1];
       gtype[d] = type[i];
+      gpmass[d] = pmass[i];
     }
-    this.pos = gpos; this.vel = gvel; this.type = gtype;
-    this._pos = pos; this._vel = vel; this._type = type;
+    this.pos = gpos; this.vel = gvel; this.type = gtype; this.pmass = gpmass;
+    this._pos = pos; this._vel = vel; this._type = type; this._pmass = pmass;
 
     this._forces(cols, cells);
+    if (this.params.merge) this._coalesce();
     this._integrate();
   }
 
   _forces(cols, cells) {
     const p = this.params;
-    const pos = this.pos, vel = this.vel, type = this.type;
+    const pos = this.pos, vel = this.vel, type = this.type, pmass = this.pmass;
     const cellStart = this.cellStart;
     const coefA = this.coefA, coefR = this.coefR;
 
@@ -162,6 +201,23 @@ export class Simulation {
     const half = WORLD * 0.5;
     let pairs = 0;
 
+    // Merging piggybacks on the force loop: it already has the squared
+    // distance for every nearby pair, so detection costs one comparison
+    // rather than a second sweep over the world.
+    const merging = p.merge ? 1 : 0;
+    const merge2 = merging ? p.mergeDist * p.mergeDist : -1;
+    // Cap on how heavy a particle may get. The test is on the particles going
+    // in, as specified — so a pair just under the cap can land above it, and
+    // then neither may merge again. A cap of 1 means nothing ever merges,
+    // since every particle starts at 1.
+    const cap = p.mergeCap;
+    const absorb = this.absorb, growth = this.growth;
+    if (merging) {
+      absorb.fill(-1, 0, this.count);
+      growth.fill(0, 0, this.count);
+    }
+    let merges = 0;
+
     for (let c = 0; c < cells; c++) {
       const s = cellStart[c], e = cellStart[c + 1];
       if (s === e) continue;
@@ -172,6 +228,7 @@ export class Simulation {
         const i2 = i * 2;
         const xi = pos[i2], yi = pos[i2 + 1];
         const ti = type[i], row = ti * MAX_TYPES;
+        const mi = pmass[i];
         let axi = 0, ayi = 0;
         for (let j = i + 1; j < e; j++) {
           const j2 = j * 2;
@@ -188,10 +245,21 @@ export class Simulation {
           const tr = d < coreR ? 1 - d * invCore : 0;
           const tj = type[j];
           const ai = row + tj, aj = tj * MAX_TYPES + ti;
-          const si = (coefA[ai] * ta - coefR[ai] * tr) * den;
-          const sj = (coefA[aj] * ta - coefR[aj] * tr) * den;
+          // The force a particle exerts scales with how many originals it
+          // stands for, so each direction is weighted by the *other* one.
+          const si = (coefA[ai] * ta - coefR[ai] * tr) * den * pmass[j];
+          const sj = (coefA[aj] * ta - coefR[aj] * tr) * den * mi;
           axi += dx * si; ayi += dy * si;
           vel[j2] -= dx * sj; vel[j2 + 1] -= dy * sj;
+
+          if (merging && ti === tj && d2 < merge2
+              && absorb[j] === -1 && absorb[i] < 0
+              && mi + growth[i] < cap && pmass[j] < cap) {
+            absorb[j] = i;
+            absorb[i] = -2;
+            growth[i] += pmass[j];
+            merges++;
+          }
         }
         vel[i2] += axi; vel[i2 + 1] += ayi;
       }
@@ -212,6 +280,7 @@ export class Simulation {
           // neighbour's, so the inner loop needs no wrap test at all.
           const xi = pos[i2] - wx, yi = pos[i2 + 1] - wy;
           const ti = type[i], row = ti * MAX_TYPES;
+          const mi = pmass[i];
           let axi = 0, ayi = 0;
           for (let j = ns; j < ne; j++) {
             const j2 = j * 2;
@@ -226,16 +295,62 @@ export class Simulation {
             const tr = d < coreR ? 1 - d * invCore : 0;
             const tj = type[j];
             const ai = row + tj, aj = tj * MAX_TYPES + ti;
-            const si = (coefA[ai] * ta - coefR[ai] * tr) * den;
-            const sj = (coefA[aj] * ta - coefR[aj] * tr) * den;
+            const si = (coefA[ai] * ta - coefR[ai] * tr) * den * pmass[j];
+            const sj = (coefA[aj] * ta - coefR[aj] * tr) * den * mi;
             axi += dx * si; ayi += dy * si;
             vel[j2] -= dx * sj; vel[j2 + 1] -= dy * sj;
+
+            if (merging && ti === tj && d2 < merge2
+                && absorb[j] === -1 && absorb[i] < 0
+                && mi + growth[i] < cap && pmass[j] < cap) {
+              absorb[j] = i;
+              absorb[i] = -2;
+              growth[i] += pmass[j];
+              merges++;
+            }
           }
           vel[i2] += axi; vel[i2 + 1] += ayi;
         }
       }
     }
     this.pairs = pairs;
+    this.merges = merges;
+  }
+
+  // Fold absorbed particles into their target and close the gaps. Momentum is
+  // conserved rather than the target simply keeping its own velocity, so a
+  // merge never injects energy into the world.
+  _coalesce() {
+    if (this.merges === 0) return;
+    const n = this.count;
+    const absorb = this.absorb, pos = this.pos, vel = this.vel;
+    const type = this.type, pmass = this.pmass;
+
+    for (let k = 0; k < n; k++) {
+      const a = absorb[k];
+      if (a < 0) continue;
+      const mk = pmass[k], ma = pmass[a];
+      const total = ma + mk;
+      vel[a * 2] = (vel[a * 2] * ma + vel[k * 2] * mk) / total;
+      vel[a * 2 + 1] = (vel[a * 2 + 1] * ma + vel[k * 2 + 1] * mk) / total;
+      pmass[a] = total;
+    }
+
+    // Stable compaction, so the cell ordering survives apart from the gaps.
+    let w = 0;
+    for (let k = 0; k < n; k++) {
+      if (absorb[k] >= 0) continue;
+      if (w !== k) {
+        pos[w * 2] = pos[k * 2];
+        pos[w * 2 + 1] = pos[k * 2 + 1];
+        vel[w * 2] = vel[k * 2];
+        vel[w * 2 + 1] = vel[k * 2 + 1];
+        type[w] = type[k];
+        pmass[w] = pmass[k];
+      }
+      w++;
+    }
+    this.count = w;
   }
 
   _integrate() {

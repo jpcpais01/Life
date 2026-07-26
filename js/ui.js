@@ -7,6 +7,22 @@ import { Sparkline, TREND_MIN, TREND_MAX } from './spark.js';
 
 const STORE_KEY = 'life.settings.v1';
 
+function toggle({ label, get, set }) {
+  const row = document.createElement('div');
+  row.className = 'row toggle';
+  const wrap = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = get();
+  const name = document.createElement('b');
+  name.textContent = label;
+  wrap.append(input, name);
+  row.append(wrap);
+  input.addEventListener('change', () => set(input.checked));
+  row.refresh = () => { input.checked = get(); };
+  return row;
+}
+
 function slider({ label, min, max, step, get, set, fmt }) {
   const row = document.createElement('div');
   row.className = 'row';
@@ -258,6 +274,12 @@ export function buildUI(state, view, onChange, onPreset) {
       get: () => view.radius, set: (v) => { view.radius = v; }, fmt: (v) => v.toFixed(1) },
     { label: 'Trails', min: 0, max: 0.98, step: 0.01,
       get: () => 1 - view.fade, set: (v) => { view.fade = 1 - v; }, fmt: (v) => v.toFixed(2) },
+    { label: 'Merge distance', min: 0.1, max: 10, step: 0.1,
+      get: () => p.mergeDist, set: (v) => { p.mergeDist = v; },
+      fmt: (v) => `${v.toFixed(1)} units`, merge: true },
+    { label: 'Max merged mass', min: 1, max: 10, step: 1,
+      get: () => p.mergeCap, set: (v) => { p.mergeCap = v | 0; },
+      fmt: (v) => (v <= 1 ? '1 — never merges' : `${v}`), merge: true },
   ];
   // The two radii are the variables that decide whether anything interesting
   // happens at all, and only their *ratio* matters — so show it live.
@@ -281,9 +303,30 @@ export function buildUI(state, view, onChange, onPreset) {
   };
   syncRatio();
 
+  // Merging changes the model rather than the view, so it is off by default
+  // and its two settings are dimmed until it is on.
+  const mergeRows = [];
+  const mergeToggle = toggle({
+    label: 'Merge same colour',
+    get: () => !!p.merge,
+    set: (v) => { p.merge = v ? 1 : 0; syncMerge(); onChange(); },
+  });
+  const mergeNote = document.createElement('p');
+  mergeNote.className = 'hint';
+  mergeNote.textContent = 'Same-colour particles closer than the merge distance '
+    + 'become one of their combined mass. Presets hold their own colours apart, '
+    + 'so little merges; collapsing configurations lose most of their particles.';
+  const syncMerge = () => {
+    for (const row of mergeRows) row.classList.toggle('inert', !p.merge);
+  };
+
   const globalRefresh = [];
   for (const d of defs) {
     const s = slider({ ...d, set: (v) => { d.set(v); syncRatio(); onChange(); } });
+    if (d.merge) {
+      if (mergeRows.length === 0) globals.append(mergeToggle, mergeNote);
+      mergeRows.push(s);
+    }
     globals.append(s);
     // Changing either radius moves the ratio, so both rows refresh together.
     if (d.label === 'Repulsion core') globals.append(ratio);
@@ -291,6 +334,9 @@ export function buildUI(state, view, onChange, onPreset) {
     refresh.push(s.refresh);
   }
   refresh.push(syncRatio);
+  refresh.push(mergeToggle.refresh);
+  refresh.push(syncMerge);
+  syncMerge();
 
   // ---------------- interaction matrix ----------------
   const colourSlider = slider({
