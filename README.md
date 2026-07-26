@@ -55,7 +55,27 @@ search:
 | **Rotors** | bound triples whose chase becomes rotation |
 | **Ecosystem** | every mechanism at once, nothing settles |
 
-All ten are five-colour configurations, but the palette runs to ten.
+And five more that use all ten colours. At this size a hand-written 10 x 10
+table hides the idea rather than expressing it, so these are generated from a
+rule — the rule *is* the design:
+
+| | |
+|---|---|
+| **Onion** | ten concentric shells around a heavy core |
+| **Spectrum** | the palette sorts itself into drifting rainbow bands |
+| **Two tribes** | five against five, with a traitor on each side |
+| **Food chain** | a ten-rung ladder from prey to apex |
+| **Vortex** | bound chase around the palette becomes rotation |
+
+*Onion* gives every colour the same repulsion toward the core but steadily
+weaker attraction, which places each one's equilibrium at a different radius.
+*Spectrum* makes the interaction depend only on how far apart two colours sit
+in the palette, so a one-dimensional ordering embeds itself into two-dimensional
+space. *Food chain* is a ladder rather than a loop, so the base has nothing to
+hunt and the apex nothing to fear — an asymmetry a closed cycle cannot produce.
+*Vortex* pairs attraction along a chain with repulsion across it, which is a
+couple rather than a straight pull, so its assemblies turn instead of
+travelling.
 
 Two consequences of the force law shape all of them. Since a pair settles where
 `A(1 − d/cutR) = R(1 − d/coreR)`, **repulsion must exceed attraction** for any

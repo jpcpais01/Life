@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../js/sim.js';
+import { PRESETS, applyPreset } from '../js/presets.js';
 import { MAX_TYPES, DEFAULT_TYPES, WORLD, randomizeForces } from '../js/state.js';
 
 const SOFT = 16;
@@ -182,6 +183,44 @@ test('every particle is kept exactly once by the spatial sort', () => {
   const after = new Int32Array(MAX_TYPES);
   for (let i = 0; i < sim.count; i++) after[sim.type[i]]++;
   assert.deepEqual(Array.from(after), Array.from(before));
+});
+
+test('no preset contains a pair that collapses to a point', () => {
+  // A pair with repulsion <= attraction has no equilibrium: the two fall
+  // together until only the softening term holds them apart. Cheap to check,
+  // and easy to introduce by hand or by a generating rule.
+  for (const preset of PRESETS) {
+    const n = preset.types || preset.attract.size;
+    assert.ok(n >= 1 && n <= MAX_TYPES, `${preset.name} has a bad colour count`);
+    assert.equal(preset.mass.length, n, `${preset.name} mass count does not match its colours`);
+    for (let a = 0; a < n; a++) {
+      for (let b = 0; b < n; b++) {
+        const i = a * MAX_TYPES + b;
+        assert.ok(
+          preset.repel[i] > preset.attract[i],
+          `${preset.name}: ${a},${b} has repulsion ${preset.repel[i]} <= attraction ${preset.attract[i]}`,
+        );
+      }
+    }
+  }
+});
+
+test('presets leave the matrix outside their own block alone', () => {
+  // Applying a 5-colour preset must not wipe colours 6-10, or turning the
+  // count up afterwards would reveal inert colours.
+  const state = {
+    types: 10,
+    attract: new Float32Array(MAX_TYPES * MAX_TYPES).fill(0.42),
+    repel: new Float32Array(MAX_TYPES * MAX_TYPES).fill(0.77),
+    mass: new Float32Array(MAX_TYPES).fill(1.5),
+  };
+  const five = PRESETS.find((p) => (p.types || p.attract.size) === 5);
+  applyPreset(state, five);
+  assert.equal(state.types, 5);
+  // Float32 round-trip, so compare against the stored representation.
+  assert.equal(state.attract[9 * MAX_TYPES + 9], Math.fround(0.42), 'an unused colour was overwritten');
+  assert.equal(state.repel[7 * MAX_TYPES + 3], Math.fround(0.77), 'an unused colour was overwritten');
+  assert.equal(state.mass[8], Math.fround(1.5), 'an unused mass was overwritten');
 });
 
 test('a zeroed matrix leaves particles motionless', () => {
