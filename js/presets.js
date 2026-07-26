@@ -403,10 +403,14 @@ export const PRESETS = [
 
 export function applyPreset(state, preset) {
   const size = preset.types || preset.attract.size || MAX_TYPES;
-  // Only overwrite the preset's own block; the rest of the matrix is left as
-  // it was so raising the type count afterwards still finds live values.
-  for (let a = 0; a < size; a++) {
-    for (let b = 0; b < size; b++) {
+  // A built-in only defines its own block, and overwriting past it would wipe
+  // the seeded values that make raising the colour count worthwhile. A saved
+  // configuration stored the entire matrix, though, so restoring it means
+  // restoring all of it — otherwise "load what I saved" quietly returns
+  // something else for any colour above the count that was active.
+  const span = preset.full ? MAX_TYPES : size;
+  for (let a = 0; a < span; a++) {
+    for (let b = 0; b < span; b++) {
       const i = a * MAX_TYPES + b;
       state.attract[i] = preset.attract[i];
       state.repel[i] = preset.repel[i];

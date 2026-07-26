@@ -90,9 +90,13 @@ seconds if its cross-repulsion is made symmetric.
 
 Editing any force, mass or the colour count switches the picker to *Custom*;
 nothing is lost. **Save configuration** names the current matrix, masses and
-colour count and adds it to the picker under *Saved*, stored in local storage
-alongside the built-ins; selecting one restores all three, and *Delete* removes
-it.
+colour count and adds it to the picker under *Saved*, stored in local storage;
+selecting one restores all three and *Delete* removes it.
+
+A saved configuration snapshots the entire 10 x 10 matrix, not just the colours
+that were active, and restoring it writes all of it back — a built-in only
+defines its own block and deliberately leaves the rest alone, but "load what I
+saved" has to mean exactly that.
 
 ## Controls
 

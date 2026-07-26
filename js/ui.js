@@ -487,6 +487,8 @@ function inflate(p) {
     name: p.name,
     note: `Saved configuration · ${p.types} colours`,
     types: p.types || MAX_TYPES,
+    // The snapshot covers the whole matrix, so restore the whole matrix.
+    full: true,
     attract: Float32Array.from(p.attract),
     repel: Float32Array.from(p.repel),
     mass: Float32Array.from(p.mass),

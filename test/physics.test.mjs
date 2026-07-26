@@ -223,6 +223,34 @@ test('presets leave the matrix outside their own block alone', () => {
   assert.equal(state.mass[8], Math.fround(1.5), 'an unused mass was overwritten');
 });
 
+test('a saved configuration restores every colour, not just the active ones', () => {
+  // Saved configurations snapshot all 10x10 and carry their own colour count,
+  // so loading one must reproduce it exactly — including colours that were
+  // inactive when it was saved.
+  const snapshot = {
+    types: 4,
+    full: true,
+    attract: Float32Array.from({ length: MAX_TYPES * MAX_TYPES }, (_, i) => (i % 13) / 13),
+    repel: Float32Array.from({ length: MAX_TYPES * MAX_TYPES }, (_, i) => 0.5 + (i % 7) / 20),
+    mass: Float32Array.from({ length: MAX_TYPES }, (_, i) => 0.5 + i * 0.1),
+  };
+  const state = {
+    types: 9,
+    attract: new Float32Array(MAX_TYPES * MAX_TYPES).fill(0.11),
+    repel: new Float32Array(MAX_TYPES * MAX_TYPES).fill(0.99),
+    mass: new Float32Array(MAX_TYPES).fill(2),
+  };
+  applyPreset(state, snapshot);
+  assert.equal(state.types, 4, 'the saved colour count was not restored');
+  for (let i = 0; i < MAX_TYPES * MAX_TYPES; i++) {
+    assert.equal(state.attract[i], snapshot.attract[i], `attraction ${i} not restored`);
+    assert.equal(state.repel[i], snapshot.repel[i], `repulsion ${i} not restored`);
+  }
+  for (let t = 0; t < MAX_TYPES; t++) {
+    assert.equal(state.mass[t], snapshot.mass[t], `mass ${t} not restored`);
+  }
+});
+
 test('a zeroed matrix leaves particles motionless', () => {
   const sim = makeSim(500);
   sim.attract.fill(0);
