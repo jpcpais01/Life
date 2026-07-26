@@ -339,8 +339,11 @@ input[type=range]:hover::-moz-range-thumb { background: #cfd8ee; }
   margin: 0 auto;
 }
 .colhead { padding-bottom: 2px; }
+/* Half-transparent background so a hundred cells read as a lighter grid. The
+   sliders and readouts inside stay fully opaque — dropping the whole element
+   to 0.5 would take them with it. */
 .cell {
-  background: var(--panel-2);
+  background: rgba(20, 24, 36, 0.5);
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 3px 3px 2px;
