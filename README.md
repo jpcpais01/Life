@@ -336,9 +336,21 @@ if things slow down, shrink the radius before you shrink the crowd.
 * **Spatial hash grid, rebuilt every step with a counting sort.** Cells are half
   the attraction radius across; a forward-half 5 × 5 stencil visits each pair
   exactly once, which both halves the work and tests ~30% fewer out-of-range
-  candidates than radius-sized cells.
+  candidates than radius-sized cells. Finer grids were measured too — a third
+  or a quarter of the radius wastes less area but loses more to per-cell
+  bookkeeping than it saves.
 * **Particles are physically reordered into grid order** each step, so the inner
   loop walks contiguous memory instead of chasing indices.
+* **The stencil is walked as three row spans, not twelve cells.** A grid row is
+  contiguous in memory and the sort puts cell members in index order, so each
+  row of the neighbourhood is one unbroken run of particles. That turns twelve
+  inner loops of ~12 iterations into three of ~25–60, and a particle's type,
+  coefficients and running force are loaded once for its whole neighbourhood
+  instead of once per neighbour cell. Worth ~19% at 10k particles, for exactly
+  the same set of pairs.
+* **Interaction coefficients on a power-of-two stride, attract and repel
+  interleaved**, so the two numbers a pair needs share a cache line and the
+  index is a shift rather than a multiply.
 * **Flat interleaved typed arrays throughout**, double-buffered and allocated
   once at maximum capacity. Steady state allocates nothing, so the collector
   never interrupts the animation.

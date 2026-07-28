@@ -21,13 +21,32 @@ const DMIN = 1;
 
 // Cells are half the interaction radius across, so the neighbourhood is 5x5.
 // That tests ~30% fewer out-of-range candidates than radius-sized cells
-// (25/4π vs 9/π wasted area) and measures ~15% faster at high counts.
+// (25/4π vs 9/π wasted area) and measures ~15% faster at high counts. Finer
+// grids were measured too: cutR/3 and cutR/4 waste less area but lose more to
+// per-cell bookkeeping than they save, so half stays the best of the sweep.
 const CELLS_PER_R = 2;
-// Forward half of the 5x5 neighbourhood: together with the cell's own
-// interior, every unordered pair is visited exactly once (needs cols >= 5).
-const OFF_X = new Int32Array([1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]);
-const OFF_Y = new Int32Array([0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]);
-const NOFF = OFF_X.length;
+
+// The forward half of that 5x5 neighbourhood is twelve cells: dx 1..2 on the
+// cell's own row, then dx -2..2 on each of the two rows above. Together with
+// the cell's own interior every unordered pair is visited exactly once.
+//
+// Those twelve are never enumerated one at a time, though. A row of the grid is
+// contiguous in memory (c = cy*cols + cx) and the sort puts cell members in
+// index order, so each stencil ROW is one unbroken span of particles. Walking
+// the three spans instead of twelve cells turns twelve inner loops of ~12
+// iterations into three of ~25-60, which is where the speed comes from: the
+// per-loop setup finally amortises. A span splits in two only when the row
+// wraps around the left or right edge, which needs cols >= 5.
+const ROWS = 3;
+const MAX_RUNS = ROWS * 2;
+
+// Interaction coefficients are indexed by a pair of types every single pair
+// evaluation, so the table is padded to a power-of-two stride (index by shift,
+// not multiply) and the attract/repel entries are interleaved so a pair's two
+// numbers share one cache line.
+const CO_SHIFT = 5;
+const CO_STRIDE = 1 << CO_SHIFT;
+if (MAX_TYPES > CO_STRIDE) throw new Error('CO_SHIFT too small for the palette');
 
 export class Simulation {
   constructor() {
@@ -71,9 +90,15 @@ export class Simulation {
     this.repel = new Float32Array(MAX_TYPES * MAX_TYPES);
     this.mass = new Float32Array(MAX_TYPES).fill(1);
 
-    // Per-step coefficients: matrix * mass * force * dt, folded once.
-    this.coefA = new Float32Array(MAX_TYPES * MAX_TYPES);
-    this.coefR = new Float32Array(MAX_TYPES * MAX_TYPES);
+    // Per-step coefficients: matrix * mass * force * dt, folded once. Laid out
+    // as [attract, repel] pairs on a padded stride — see CO_SHIFT.
+    this.coef = new Float32Array(CO_STRIDE * CO_STRIDE * 2);
+
+    // Scratch for the row spans of one cell's neighbourhood.
+    this._runS = new Int32Array(MAX_RUNS);
+    this._runE = new Int32Array(MAX_RUNS);
+    this._runX = new Float64Array(MAX_RUNS);
+    this._runY = new Float64Array(MAX_RUNS);
 
     this.params = { ...DEFAULT_PARAMS };
     this.pairs = 0;
@@ -183,14 +208,16 @@ export class Simulation {
     const p = this.params;
     const pos = this.pos, vel = this.vel, type = this.type, pmass = this.pmass;
     const cellStart = this.cellStart;
-    const coefA = this.coefA, coefR = this.coefR;
+    const coef = this.coef;
+    const runS = this._runS, runE = this._runE, runX = this._runX, runY = this._runY;
 
     const k = p.force * p.dt;
     for (let a = 0; a < MAX_TYPES; a++) {
       for (let b = 0; b < MAX_TYPES; b++) {
-        const i = a * MAX_TYPES + b;
-        coefA[i] = k * this.attract[i] * this.mass[b];
-        coefR[i] = k * this.repel[i] * this.mass[b];
+        const src = a * MAX_TYPES + b;
+        const dst = ((a << CO_SHIFT) + b) << 1;
+        coef[dst] = k * this.attract[src] * this.mass[b];
+        coef[dst + 1] = k * this.repel[src] * this.mass[b];
       }
     }
 
@@ -223,32 +250,70 @@ export class Simulation {
       if (s === e) continue;
       const cx = c % cols, cy = (c / cols) | 0;
 
-      // --- pairs within this cell ---
+      // --- resolve the neighbourhood into spans, once for the whole cell ---
+      //
+      // Each of the three stencil rows is one range of columns, which is one
+      // contiguous range of particles. A row that runs off the left or right
+      // edge becomes two spans carrying opposite wrap offsets.
+      let nr = 0;
+      for (let dy = 0; dy < ROWS; dy++) {
+        // The cell's own row only reaches forward; the rows above reach both
+        // ways, since their backward half was never visited from there.
+        const lo = dy === 0 ? cx + 1 : cx - 2;
+        const hi = cx + 2;
+        let ny = cy + dy, wy = 0;
+        if (ny >= cols) { ny -= cols; wy = WORLD; }
+        const base = ny * cols;
+
+        // cols >= 5 guarantees at most one of these two splits applies.
+        let a0 = lo, b0 = hi, w0 = 0, a1 = 0, b1 = -1, w1 = 0;
+        if (lo < 0) { a0 = lo + cols; b0 = cols - 1; w0 = -WORLD; b1 = hi; }
+        else if (hi >= cols) { b0 = cols - 1; b1 = hi - cols; w1 = WORLD; }
+
+        // a0 > b0 happens when the forward-only row starts past the edge; the
+        // span is then empty and cellStart reports it as such.
+        let ns = cellStart[base + a0], ne = cellStart[base + b0 + 1];
+        if (ns !== ne) { runS[nr] = ns; runE[nr] = ne; runX[nr] = w0; runY[nr] = wy; nr++; }
+        if (b1 >= a1) {
+          ns = cellStart[base + a1]; ne = cellStart[base + b1 + 1];
+          if (ns !== ne) { runS[nr] = ns; runE[nr] = ne; runX[nr] = w1; runY[nr] = wy; nr++; }
+        }
+      }
+
+      // --- one pass per particle, covering its whole neighbourhood ---
+      //
+      // The particle's own row, type and running force stay live across every
+      // span, so they are loaded once instead of once per neighbour cell, and
+      // the force lands in `vel` in a single write at the end.
       for (let i = s; i < e; i++) {
         const i2 = i * 2;
-        const xi = pos[i2], yi = pos[i2 + 1];
-        const ti = type[i], row = ti * MAX_TYPES;
+        const x0 = pos[i2], y0 = pos[i2 + 1];
+        const ti = type[i], row = ti << CO_SHIFT;
         const mi = pmass[i];
         let axi = 0, ayi = 0;
+
+        // pairs inside this cell
         for (let j = i + 1; j < e; j++) {
           const j2 = j * 2;
-          let dx = pos[j2] - xi;
-          let dy = pos[j2 + 1] - yi;
+          let dx = pos[j2] - x0;
+          let dy = pos[j2 + 1] - y0;
           if (dx > half) dx -= WORLD; else if (dx < -half) dx += WORLD;
           if (dy > half) dy -= WORLD; else if (dy < -half) dy += WORLD;
           const d2 = dx * dx + dy * dy;
           if (d2 >= cut2) continue;
           pairs++;
           const d = Math.sqrt(d2);
-          const den = 1 / ((d2 + SOFT) * (d < DMIN ? DMIN : d));
+          const den = 1 / ((d2 + SOFT) * (d > DMIN ? d : DMIN));
           const ta = 1 - d * invCut;
-          const tr = d < coreR ? 1 - d * invCore : 0;
+          // Outside the core this goes negative, so clamping is the same test
+          // as `d < coreR` without the branch.
+          const u = 1 - d * invCore, tr = u > 0 ? u : 0;
           const tj = type[j];
-          const ai = row + tj, aj = tj * MAX_TYPES + ti;
+          const ai = (row + tj) << 1, aj = ((tj << CO_SHIFT) + ti) << 1;
           // The force a particle exerts scales with how many originals it
           // stands for, so each direction is weighted by the *other* one.
-          const si = (coefA[ai] * ta - coefR[ai] * tr) * den * pmass[j];
-          const sj = (coefA[aj] * ta - coefR[aj] * tr) * den * mi;
+          const si = (coef[ai] * ta - coef[ai + 1] * tr) * den * pmass[j];
+          const sj = (coef[aj] * ta - coef[aj + 1] * tr) * den * mi;
           axi += dx * si; ayi += dy * si;
           vel[j2] -= dx * sj; vel[j2 + 1] -= dy * sj;
 
@@ -261,28 +326,14 @@ export class Simulation {
             merges++;
           }
         }
-        vel[i2] += axi; vel[i2 + 1] += ayi;
-      }
 
-      // --- pairs with the forward neighbour cells ---
-      for (let o = 0; o < NOFF; o++) {
-        let nx = cx + OFF_X[o], ny = cy + OFF_Y[o];
-        let wx = 0, wy = 0;
-        if (nx < 0) { nx += cols; wx = -WORLD; } else if (nx >= cols) { nx -= cols; wx = WORLD; }
-        if (ny < 0) { ny += cols; wy = -WORLD; } else if (ny >= cols) { ny -= cols; wy = WORLD; }
-        const nc = ny * cols + nx;
-        const ns = cellStart[nc], ne = cellStart[nc + 1];
-        if (ns === ne) continue;
-
-        for (let i = s; i < e; i++) {
-          const i2 = i * 2;
+        // pairs across the neighbourhood spans
+        for (let o = 0; o < nr; o++) {
           // Shift this cell's particle by the wrap offset instead of the
           // neighbour's, so the inner loop needs no wrap test at all.
-          const xi = pos[i2] - wx, yi = pos[i2 + 1] - wy;
-          const ti = type[i], row = ti * MAX_TYPES;
-          const mi = pmass[i];
-          let axi = 0, ayi = 0;
-          for (let j = ns; j < ne; j++) {
+          const xi = x0 - runX[o], yi = y0 - runY[o];
+          const ne = runE[o];
+          for (let j = runS[o]; j < ne; j++) {
             const j2 = j * 2;
             const dx = pos[j2] - xi;
             const dy = pos[j2 + 1] - yi;
@@ -290,13 +341,13 @@ export class Simulation {
             if (d2 >= cut2) continue;
             pairs++;
             const d = Math.sqrt(d2);
-            const den = 1 / ((d2 + SOFT) * (d < DMIN ? DMIN : d));
+            const den = 1 / ((d2 + SOFT) * (d > DMIN ? d : DMIN));
             const ta = 1 - d * invCut;
-            const tr = d < coreR ? 1 - d * invCore : 0;
+            const u = 1 - d * invCore, tr = u > 0 ? u : 0;
             const tj = type[j];
-            const ai = row + tj, aj = tj * MAX_TYPES + ti;
-            const si = (coefA[ai] * ta - coefR[ai] * tr) * den * pmass[j];
-            const sj = (coefA[aj] * ta - coefR[aj] * tr) * den * mi;
+            const ai = (row + tj) << 1, aj = ((tj << CO_SHIFT) + ti) << 1;
+            const si = (coef[ai] * ta - coef[ai + 1] * tr) * den * pmass[j];
+            const sj = (coef[aj] * ta - coef[aj + 1] * tr) * den * mi;
             axi += dx * si; ayi += dy * si;
             vel[j2] -= dx * sj; vel[j2 + 1] -= dy * sj;
 
@@ -309,8 +360,8 @@ export class Simulation {
               merges++;
             }
           }
-          vel[i2] += axi; vel[i2 + 1] += ayi;
         }
+        vel[i2] += axi; vel[i2 + 1] += ayi;
       }
     }
     this.pairs = pairs;
