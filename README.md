@@ -345,7 +345,10 @@ if things slow down, shrink the radius before you shrink the crowd.
 * **One sqrt and one divide per interaction.** Mass, time step and force scale
   are folded into the matrices once per step rather than per pair.
 * **WebGL2 point sprites**, one buffer upload and one draw call per frame,
-  with a canvas2d fallback.
+  with a canvas2d fallback. Particles are flat discs at half alpha, with a
+  single pixel of edge softening taken from the screen-space derivative of the
+  radius — enough that a two-pixel dot is not a jagged square, and capped so it
+  cannot grow back into a gradient on the smallest particles.
 
 Roughly 4M particle interactions per second per core on a modest machine; a
 mid-range laptop handles several thousand particles at 60 fps comfortably.

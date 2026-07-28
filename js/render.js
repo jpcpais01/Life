@@ -37,9 +37,18 @@ in vec3 vColor;
 out vec4 fragColor;
 void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
-  float r2 = dot(c, c);
-  if (r2 > 1.0) discard;
-  float a = smoothstep(1.0, 0.25, r2) * ${PARTICLE_ALPHA.toFixed(3)};
+  float r = length(c);
+  if (r > 1.0) discard;
+  // A flat disc: the same alpha everywhere inside the edge, rather than the
+  // old profile that faded across three quarters of the area and made every
+  // particle a soft glow.
+  //
+  // The edge still gets one pixel of softening, from the screen-space
+  // derivative of r, or a disc a couple of pixels across would be a jagged
+  // square. Capped, since on the smallest particles a whole pixel is most of
+  // the radius and an uncapped value would put the fade straight back.
+  float aa = min(0.25, fwidth(r));
+  float a = (1.0 - smoothstep(1.0 - aa, 1.0, r)) * ${PARTICLE_ALPHA.toFixed(3)};
   fragColor = vec4(vColor * a, a); // premultiplied
 }`;
 
@@ -151,9 +160,11 @@ export class Renderer {
       const c = document.createElement('canvas');
       c.width = c.height = R * 2;
       const g = c.getContext('2d');
+      // Flat to the rim, with a sliver of fade so the downscaled sprite does
+      // not alias — the canvas2d equivalent of the shader's one-pixel edge.
       const grd = g.createRadialGradient(R, R, 0, R, R, R);
       grd.addColorStop(0, t.hex);
-      grd.addColorStop(0.6, t.hex);
+      grd.addColorStop(0.88, t.hex);
       grd.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = grd;
       g.fillRect(0, 0, R * 2, R * 2);
