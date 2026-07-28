@@ -558,23 +558,40 @@ function storeUserPresets(list) {
   } catch { /* quota or private mode — the in-memory list still works */ }
 }
 
+// A configuration saved before the palette grew holds a smaller square. Accept
+// any square that fits and lay it into the corner, rather than discarding
+// someone's saved work because the app gained colours.
 function validUserPreset(p) {
-  return p && typeof p.name === 'string'
-    && Array.isArray(p.attract) && p.attract.length === MAX_TYPES * MAX_TYPES
-    && Array.isArray(p.repel) && p.repel.length === MAX_TYPES * MAX_TYPES
-    && Array.isArray(p.mass) && p.mass.length === MAX_TYPES;
+  if (!p || typeof p.name !== 'string') return false;
+  if (!Array.isArray(p.attract) || !Array.isArray(p.repel) || !Array.isArray(p.mass)) return false;
+  const side = Math.round(Math.sqrt(p.attract.length));
+  return side * side === p.attract.length
+    && side <= MAX_TYPES
+    && p.repel.length === p.attract.length
+    && p.mass.length >= side;
 }
 
 // Saved presets are stored as plain arrays; applyPreset wants typed ones.
 function inflate(p) {
+  const side = Math.round(Math.sqrt(p.attract.length));
+  const attract = new Float32Array(MAX_TYPES * MAX_TYPES);
+  const repel = new Float32Array(MAX_TYPES * MAX_TYPES);
+  const mass = new Float32Array(MAX_TYPES).fill(1);
+  for (let a = 0; a < side; a++) {
+    for (let b = 0; b < side; b++) {
+      attract[a * MAX_TYPES + b] = p.attract[a * side + b];
+      repel[a * MAX_TYPES + b] = p.repel[a * side + b];
+    }
+    mass[a] = p.mass[a];
+  }
   return {
     name: p.name,
     note: `Saved configuration · ${p.types} colours`,
-    types: p.types || MAX_TYPES,
-    // The snapshot covers the whole matrix, so restore the whole matrix.
+    types: Math.min(MAX_TYPES, p.types || side),
+    // The snapshot covers everything it knew about, so restore all of it.
     full: true,
-    attract: Float32Array.from(p.attract),
-    repel: Float32Array.from(p.repel),
-    mass: Float32Array.from(p.mass),
+    attract,
+    repel,
+    mass,
   };
 }

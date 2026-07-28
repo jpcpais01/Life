@@ -13,6 +13,19 @@ export const TYPES = [
   { name: 'Pink',   hex: '#ff5fbe', color: [1.00, 0.37, 0.75] },
   { name: 'Violet', hex: '#9d7bff', color: [0.62, 0.48, 1.00] },
   { name: 'Steel',  hex: '#8fa6c4', color: [0.56, 0.65, 0.77] },
+  // The second ten fill the gaps between the first ten rather than crowding
+  // them: each sits roughly midway between two existing hues, and is pitched
+  // lighter or deeper than both so neighbours stay tellable apart.
+  { name: 'Lime',    hex: '#a8e024', color: [0.66, 0.88, 0.14] },
+  { name: 'Teal',    hex: '#17b89a', color: [0.09, 0.72, 0.60] },
+  { name: 'Sky',     hex: '#7ecbff', color: [0.49, 0.80, 1.00] },
+  { name: 'Indigo',  hex: '#6b5ce0', color: [0.42, 0.36, 0.88] },
+  { name: 'Magenta', hex: '#e13ad6', color: [0.88, 0.23, 0.84] },
+  { name: 'Rose',    hex: '#ff8fa0', color: [1.00, 0.56, 0.63] },
+  { name: 'Coral',   hex: '#ff7440', color: [1.00, 0.45, 0.25] },
+  { name: 'Amber',   hex: '#e0a91b', color: [0.88, 0.66, 0.11] },
+  { name: 'Sand',    hex: '#d9c9a3', color: [0.85, 0.79, 0.64] },
+  { name: 'Slate',   hex: '#5d6e88', color: [0.36, 0.43, 0.53] },
 ];
 
 // Matrices are always allocated at the maximum and indexed with a fixed

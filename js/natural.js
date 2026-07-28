@@ -342,7 +342,10 @@ function kinship(attract, repel, mass) {
   // The resulting table is ultrametric rather than flat, which none of the
   // other rules produce: colours form families, families form clans, and the
   // structure that appears is nested rather than merely sorted.
-  const DEPTH = 4;
+  // Enough splits that the palette has more lineages than colours, or two
+  // colours would share one and be related to each other as closely as to
+  // themselves.
+  const DEPTH = Math.max(4, Math.ceil(Math.log2(MAX_TYPES)) + 1);
   const lineage = [], generosity = [];
   for (let t = 0; t < MAX_TYPES; t++) {
     const bits = [];

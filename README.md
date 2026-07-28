@@ -210,7 +210,7 @@ nothing is lost. **Save configuration** names the current matrix, masses and
 colour count and adds it to the picker under *Saved*, stored in local storage;
 selecting one restores all three and *Delete* removes it.
 
-A saved configuration snapshots the entire 10 x 10 matrix, not just the colours
+A saved configuration snapshots the entire matrix, not just the colours
 that were active, and restoring it writes all of it back — a built-in only
 defines its own block and deliberately leaves the rest alone, but "load what I
 saved" has to mean exactly that.
@@ -218,6 +218,13 @@ saved" has to mean exactly that.
 ## Controls
 
 The left panel edits the live simulation — nothing restarts.
+
+**Press and hold** anywhere on the world for a magnified view of that spot,
+tracking as you drag and released when you lift. The world is a torus, so the
+magnified window pulls in whatever is on the far side when it straddles a seam
+— otherwise a loupe near an edge would show an empty half. It works while
+paused too, which is when you most want to look closely: the last frame is kept
+so the view can redraw itself with no new one arriving.
 
 **World** — particle count, global force scale, the two radii, damping, time
 step, sub-steps per frame, particle size, and trail persistence.
@@ -254,13 +261,13 @@ to the heading restores all nine to their defaults; it leaves the interaction
 matrix and masses untouched, so you can put the world back without losing the
 forces you were exploring.
 
-**Interactions** — how many colours are in play (1 to 10) and the matrix that
+**Interactions** — how many colours are in play (1 to 20) and the matrix that
 couples them. Each cell holds two sliders: green for attraction, red for
 repulsion. The **row** is the particle that feels the force, the **column** is
 the particle exerting it. At high colour counts the matrix scrolls sideways
 rather than shrinking the sliders to nothing.
 
-The matrix is always stored at the full 10 × 10 and indexed with a fixed
+The matrix is always stored at the full 20 × 20 and indexed with a fixed
 stride, so colours above the active count keep their values rather than being
 destroyed — turning the count back up restores exactly what was there, and
 turning it up past a preset's own size reveals colours that already interact

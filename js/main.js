@@ -1,11 +1,13 @@
-import { createState, randomizeForces, DEFAULT_PARAMS, DEFAULT_COUNT, DEFAULT_VIEW } from './state.js';
+import { createState, randomizeForces, DEFAULT_PARAMS, DEFAULT_COUNT, DEFAULT_VIEW, WORLD, MAX_PARTICLES } from './state.js';
 import { applyPreset, PRESETS } from './presets.js';
 import { createHost } from './host.js';
 import { Renderer } from './render.js';
 import { buildUI, saveSettings, loadSettings } from './ui.js';
 
 const state = createState();
-const view = { ...DEFAULT_VIEW };
+// zoom/cx/cy are the loupe, and deliberately transient — they are not saved,
+// so a page reload never comes back mysteriously magnified.
+const view = { ...DEFAULT_VIEW, zoom: 1, cx: WORLD / 2, cy: WORLD / 2 };
 if (!loadSettings(state, view)) {
   applyPreset(state, PRESETS[0]);
   state.preset = 0;
@@ -65,6 +67,54 @@ function layout() {
 }
 new ResizeObserver(layout).observe(stage);
 layout();
+
+// ---------------- loupe ----------------
+//
+// Press and hold anywhere on the world for a magnified view of that spot,
+// tracking while dragging and released on lift.
+
+const LOUPE_ZOOM = 4;
+
+// The canvas stays a plain map of the world whatever the magnification: screen
+// fraction maps straight to world position. Deriving the centre through the
+// live transform instead would feed the view back into its own input, and the
+// point under the finger would run away from it.
+function aimLoupe(e) {
+  const r = canvas.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const fx = (e.clientX - r.left) / r.width;
+  const fy = (e.clientY - r.top) / r.height;
+  view.cx = Math.min(WORLD, Math.max(0, fx * WORLD));
+  view.cy = Math.min(WORLD, Math.max(0, fy * WORLD));
+  viewMoved = true;
+}
+
+function releaseLoupe() {
+  if (view.zoom === 1) return;
+  view.zoom = 1;
+  view.cx = WORLD / 2;
+  view.cy = WORLD / 2;
+  viewMoved = true;
+  renderer.clear();
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  // Capture, so a drag that wanders off the canvas keeps tracking and the
+  // release still arrives rather than leaving the view stuck zoomed.
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* not fatal */ }
+  view.zoom = LOUPE_ZOOM;
+  renderer.clear();
+  aimLoupe(e);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (view.zoom > 1) aimLoupe(e);
+});
+for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  canvas.addEventListener(ev, releaseLoupe);
+}
+// A pointer lost to a background tab or an alert never sends pointerup.
+addEventListener('blur', releaseLoupe);
 
 // ---------------- controls ----------------
 
@@ -137,6 +187,14 @@ const statMs = document.getElementById('statMs');
 let frames = 0;
 let lastStatAt = performance.now();
 
+// A copy of the last frame drawn, so the loupe can redraw from it when no new
+// frame is arriving — which is exactly the case while paused, and a frozen
+// world is the one you most want to inspect closely. One memcpy per frame,
+// tens of microseconds against a step measured in milliseconds.
+const lastFrame = new Float32Array(MAX_PARTICLES * 4);
+let lastCount = 0;
+let viewMoved = false;
+
 function compact(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e4) return (n / 1e3).toFixed(0) + 'k';
@@ -149,11 +207,16 @@ function frame() {
 
   const f = host.beginFrame();
   if (f) {
+    lastFrame.set(f.data);
+    lastCount = f.n;
     renderer.draw(f.data, f.n, view);
     host.endFrame();
     if (f.signals) ui.pushSignals(f.signals);
     frames++;
+  } else if (viewMoved && lastCount) {
+    renderer.draw(lastFrame.subarray(0, lastCount * 4), lastCount, view);
   }
+  viewMoved = false;
 
   const now = performance.now();
   if (now - lastStatAt >= 500) {

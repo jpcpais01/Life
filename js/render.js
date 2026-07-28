@@ -12,14 +12,22 @@ in vec2 aPos;
 in float aType;
 in float aMass;
 uniform float uSize;
+uniform vec2 uCentre;
+uniform float uZoom;
 uniform vec3 uColors[${MAX_TYPES}];
 out vec3 vColor;
 void main() {
-  vec2 p = aPos / ${WORLD.toFixed(1)} * 2.0 - 1.0;
+  const float W = ${WORLD.toFixed(1)};
+  vec2 d = aPos - uCentre;
+  // Take each particle's nearest wrapped image. The world is a torus, so a
+  // magnified view near a seam has to pull in what is on the far side —
+  // otherwise the loupe would show an empty half at every edge.
+  d -= W * floor(d / W + 0.5);
+  vec2 p = d * (2.0 * uZoom / W);
   gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
   // Mass behaves like area, so radius goes as its square root: a merged
   // particle covers the pixels its parts did instead of ballooning.
-  gl_PointSize = uSize * sqrt(aMass);
+  gl_PointSize = uSize * sqrt(aMass) * uZoom;
   vColor = uColors[int(aType)];
 }`;
 
@@ -94,6 +102,8 @@ export class Renderer {
 
     this.prog = program(gl, VERT, FRAG);
     this.uSize = gl.getUniformLocation(this.prog, 'uSize');
+    this.uCentre = gl.getUniformLocation(this.prog, 'uCentre');
+    this.uZoom = gl.getUniformLocation(this.prog, 'uZoom');
     const cols = new Float32Array(MAX_TYPES * 3);
     TYPES.forEach((t, i) => cols.set(t.color, i * 3));
     gl.useProgram(this.prog);
@@ -167,17 +177,37 @@ export class Renderer {
     this.dpr = dpr;
   }
 
+  // Wipe the canvas. Used when the view transform changes, since the pixels
+  // already there belong to the old one.
+  clear() {
+    if (this.gl) {
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    } else if (this.ctx) {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.globalAlpha = 1;
+      this.ctx.fillStyle = '#000';
+      this.ctx.fillRect(0, 0, this.pxSize, this.pxSize);
+    }
+  }
+
   // `data` is an interleaved [x, y, type, mass] view from the simulation.
   draw(data, n, opts) {
     const scale = this.pxSize / WORLD;
     // Floor at 2 CSS pixels. A radius in world units renders less than half as
     // large on a phone as on a desktop, and below ~2px particles vanish.
     const size = Math.max(2 * this.dpr, opts.radius * 2 * scale);
-    if (this.mode === 'webgl') this._drawGL(data, n, size, opts.fade);
-    else this._drawCanvas(data, n, size, opts.fade);
+    const zoom = opts.zoom || 1;
+    const cx = opts.cx == null ? WORLD / 2 : opts.cx;
+    const cy = opts.cy == null ? WORLD / 2 : opts.cy;
+    // Trails are frozen pixels from the previous transform, so while the view
+    // is moving they would smear into nonsense. Clear every frame instead.
+    const fade = zoom > 1 ? 1 : opts.fade;
+    const view = { size, fade, zoom, cx, cy };
+    if (this.mode === 'webgl') this._drawGL(data, n, view);
+    else this._drawCanvas(data, n, view);
   }
 
-  _drawGL(data, n, size, fade) {
+  _drawGL(data, n, { size, fade, zoom, cx, cy }) {
     const gl = this.gl;
     if (fade >= 0.999) {
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -191,6 +221,8 @@ export class Renderer {
 
     gl.useProgram(this.prog);
     gl.uniform1f(this.uSize, size);
+    gl.uniform2f(this.uCentre, cx, cy);
+    gl.uniform1f(this.uZoom, zoom);
     gl.bindVertexArray(this.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, n * 4);
@@ -198,7 +230,7 @@ export class Renderer {
     gl.bindVertexArray(null);
   }
 
-  _drawCanvas(data, n, size, fade) {
+  _drawCanvas(data, n, { size, fade, zoom, cx, cy }) {
     const ctx = this.ctx;
     const s = this.pxSize;
     ctx.globalCompositeOperation = 'source-over';
@@ -206,11 +238,16 @@ export class Renderer {
     ctx.fillRect(0, 0, s, s);
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = PARTICLE_ALPHA;
-    const scale = s / WORLD;
+    // Same nearest-wrapped-image mapping as the shader.
+    const wrap = (d) => d - WORLD * Math.floor(d / WORLD + 0.5);
+    const k1 = (s * zoom) / WORLD;
     for (let i = 0, k = 0; i < n; i++, k += 4) {
-      const px = size * Math.sqrt(data[k + 3]);
+      const px = size * Math.sqrt(data[k + 3]) * zoom;
       const h = px * 0.5;
-      ctx.drawImage(this.sprites[data[k + 2]], data[k] * scale - h, data[k + 1] * scale - h, px, px);
+      const x = wrap(data[k] - cx) * k1 + s * 0.5;
+      const y = wrap(data[k + 1] - cy) * k1 + s * 0.5;
+      if (x < -px || y < -px || x > s + px || y > s + px) continue;
+      ctx.drawImage(this.sprites[data[k + 2]], x - h, y - h, px, px);
     }
     ctx.globalAlpha = 1;
   }
